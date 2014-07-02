@@ -26,5 +26,6 @@ type function_kind =
 type benchmark = string (* function name *)
                * function_kind
 
-val add : benchmark list -> unit
-val functions : unit -> benchmark list
+let r : benchmark list ref = ref []
+let add l = r := !r @ l
+let functions () = !r

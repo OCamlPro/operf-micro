@@ -890,5 +890,6 @@ let check b =
   else Error "Cannot prove"
 
 let functions =
-  [ "boyer", Unit (run, check, Slow) ]
+  [ "boyer", Unit (run, check, Long) ]
 
+let () = add functions
