@@ -7,3 +7,7 @@
 *.cmx
 *.cmxs
 *.cmxa
+/builder/lexer.ml
+/builder/parser.ml
+/builder/parser.mli
+/builder/builder
