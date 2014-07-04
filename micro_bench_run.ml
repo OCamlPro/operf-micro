@@ -98,6 +98,7 @@ struct
     maximal_cost:Micro_bench_types.cost;
     selection:StringSet.t option;
     test_only:bool;
+    output_file:string option;
   }
 
   let create
@@ -110,6 +111,7 @@ struct
       ?(maximal_cost=Defaults.maximal_cost)
       ?(selection=Defaults.selection)
       ?(test_only=Defaults.test_only)
+      ?output_file
       ()
     =
     { verbosity;
@@ -120,7 +122,8 @@ struct
       number_of_different_values;
       maximal_cost;
       selection;
-      test_only }
+      test_only;
+      output_file }
 
   open Arg
 
@@ -141,8 +144,11 @@ struct
     let set_cost c = Unit (fun () ->
         if compare_cost !maximal_cost c < 0
         then maximal_cost := c) in
+    let set_float r = String (fun i -> r := Some i) in
 
     let list = ref false in
+    let raw_list = ref false in
+    let output_file = ref None in
 
     let selection = ref None in
     let spec =
@@ -162,6 +168,9 @@ struct
 
         "--list", Set list, " list available benchmarks";
         "-l", Set list, " alias of --list";
+        "--raw-list", Set raw_list, " list available benchmarks";
+
+        "-o", set_float output_file, " set output file";
       ] in
 
     let doc =
@@ -174,8 +183,8 @@ struct
          | Some l -> selection := Some (StringSet.add s l))
       doc;
 
-    if !list
-    then `List
+    if !list || !raw_list
+    then `List (!raw_list, !output_file)
     else
       `Run
         (create
@@ -188,6 +197,7 @@ struct
            ~maximal_cost:!maximal_cost
            ?test_only:!test_only
            ~selection:!selection
+           ?output_file:!output_file
            ())
 
 end
@@ -418,14 +428,14 @@ module Tester = struct
     | Range(x, y) -> Printf.sprintf "[%i ... %i]" x y
     | List l -> "[" ^ (String.concat "; " (List.map string_of_int l)) ^ "]"
 
-  let list l =
+  let list output l =
     List.iter (function
         | name, Unit(_,_,cost) ->
-          Printf.printf "  %s: %s\n" name (string_of_cost cost)
+          Printf.fprintf output "  %s: %s\n" name (string_of_cost cost)
         | name, Int(_,_,_,costs) ->
-          Printf.printf "  %s:\n" name;
+          Printf.fprintf output "  %s:\n" name;
           List.iter (fun (range, cost) ->
-              Printf.printf "    %s: %s\n"
+              Printf.fprintf output "    %s: %s\n"
                 (string_of_cost cost)
                 (string_of_range range))
             costs)
@@ -582,9 +592,17 @@ let run_all config functions =
 
 let run functions =
   match Config.parse () with
-  | `List ->
-    Printf.printf "benchmarks:\n";
-    Tester.list functions
+  | `List (raw, output_file) ->
+    let output = match output_file with
+      | None -> stdout
+      | Some f -> open_out f in
+    if raw
+    then List.iter (fun (name, _) -> Printf.fprintf output "%s\n" name) functions
+    else begin
+      Printf.fprintf output "benchmarks:\n";
+      Tester.list output functions
+    end;
+    close_out output
   | `Run config ->
     ignore (run_all config functions)
 
