@@ -2,10 +2,13 @@
 open Parser
 }
 
-let float_literal =
+(* let float_literal = *)
+(*   ['0'-'9'] ['0'-'9' '_']* *)
+(*   ('.' ['0'-'9' '_']* )? *)
+(*   (['e' 'E'] ['+' '-']? ['0'-'9'] ['0'-'9' '_']*\)? *)
+
+let int_literal =
   ['0'-'9'] ['0'-'9' '_']*
-  ('.' ['0'-'9' '_']* )?
-  (['e' 'E'] ['+' '-']? ['0'-'9'] ['0'-'9' '_']*)?
 
 let char = ['A'-'Z' 'a'-'z' '_' '\192'-'\214' '\216'-'\246' '\248'-'\255' ]
 let identchar =
@@ -25,9 +28,14 @@ rule token = parse
   | ","   { COMMA }
   | char identchar* { IDENT (Lexing.lexeme lexbuf) }
 
-  | float_literal
+  (* | float_literal *)
+  (*     { let s = Lexing.lexeme lexbuf in *)
+  (*       try FLOAT (float_of_string s) *)
+  (*       with Failure _ -> assert false (\* shouldn't be possible *\) } *)
+
+  | int_literal
       { let s = Lexing.lexeme lexbuf in
-        try FLOAT (float_of_string s)
+        try INT (int_of_string s)
         with Failure _ -> assert false (* shouldn't be possible *) }
 
   | "\""  { string_double_quote (Buffer.create 10) lexbuf }

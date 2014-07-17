@@ -3,7 +3,7 @@ open Files
 %}
 
 %token <string> STRING IDENT
-%token <float> FLOAT
+%token <int> INT
 %token COMMA COLON LBRACKET RBRACKET LBRACE RBRACE EOF
 
 %start file
@@ -20,8 +20,8 @@ expr:
       { List $2 }
     | STRING
       { String $1 }
-    | FLOAT
-      { Float $1 }
+    | INT
+      { Int $1 }
 
 dict:
     |

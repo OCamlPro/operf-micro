@@ -1,4 +1,24 @@
-all: builder
+
+include ../Makefile.conf
+
+WARN=-w +1..45-4-44
+OPT= $(WARN) -g
+
+OBJS=\
+  static_config.cmo utils.cmo \
+  files.cmo parser.cmo lexer.cmo loc.cmo command.cmo \
+  detect_config.cmo benchmark.cmo measurements.cmo \
+  builder.cmo main.cmo
+
+ifeq "${BEST}" "opt"
+BIN=builder.opt$(EXEEXT)
+endif
+
+all: $(BIN)
+
+static_config.ml: ../Makefile.conf
+	echo "let name = \"$(NAME)\"" > static_config.ml
+	echo "let prefix = \"$(PREFIX)\"" >> static_config.ml
 
 parser.ml parser.mli: parser.mly
 	ocamlyacc $<
@@ -6,33 +26,33 @@ parser.ml parser.mli: parser.mly
 lexer.ml: lexer.mll
 	ocamllex $<
 
-loc.cmi: loc.mli
-	ocamlc -c $<
+%.cmx: %.ml
+	ocamlopt $(OPT) -c $<
 
-loc.cmo: loc.ml loc.cmi
-	ocamlc -c $<
+%.cmo: %.ml
+	ocamlc $(OPT) -c $<
 
-files.cmi files.cmo: files.ml
-	ocamlc -c $<
+%.cmi: %.mli
+	ocamlc $(OPT) -c $<
 
-parser.cmi: parser.mli files.cmi
-	ocamlc -c $<
+builder$(EXEEXT): $(OBJS)
+	ocamlc -g -o $@ unix.cma $^
 
-parser.cmo: parser.ml parser.cmi files.cmi
-	ocamlc -c $<
+builder.opt$(EXEEXT): $(OBJS:cmo=cmx)
+	ocamlopt -g -o $@ unix.cmxa $^
 
-lexer.cmi lexer.cmo: lexer.ml parser.cmi
-	ocamlc -c $<
-
-builder.cmo: builder.ml parser.cmi lexer.cmi loc.cmi
-	ocamlc -c $<
-
-builder: files.cmo parser.cmo lexer.cmo loc.cmo builder.cmo
-	ocamlc -o $@ $^
+install: $(BIN)
+	mkdir -p $(BINDIR)
+	cp -f $(BIN) $(BINDIR)/$(NAME)$(EXEEXT)
 
 clean:
+	rm -f static_config.ml
 	rm -f parser.ml parser.mli lexer.ml
-	rm -f *.cmo *.cmi
-	rm -f builder
+	rm -f *.o *.a *.cmx *.cmo *.cmi
+	rm -f builder builder.opt
 
-.PHONY: clean
+.PHONY: all install depend clean
+depend: static_config.ml lexer.ml parser.ml parser.mli
+	ocamldep *.ml *.mli > .depend
+
+include .depend

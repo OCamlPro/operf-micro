@@ -15,11 +15,13 @@ let create_int32 n =
   a
 
 let rev a =
-  for i = 0 to (Array1.dim a - 1) / 2 do
-    let t = Array1.get a i in
-    Array1.set a i (Array1.get a (Array1.dim a - (1 + i)));
-    Array1.set a (Array1.dim a - (1 + i)) t
-  done;
+  if Array1.dim a > 0
+  then
+    for i = 0 to (Array1.dim a - 1) / 2 do
+      let t = Array1.get a i in
+      Array1.set a i (Array1.get a (Array1.dim a - (1 + i)));
+      Array1.set a (Array1.dim a - (1 + i)) t
+    done;
   a
 
 let check_int a =
@@ -29,7 +31,7 @@ let check_int a =
       then raise Exit
     done;
     Micro_bench_types.Ok
-  with _ -> Micro_bench_types.Error "incorrect rev"
+  with Exit -> Micro_bench_types.Error "incorrect rev"
 
 let check_int32 a =
   try
@@ -38,4 +40,4 @@ let check_int32 a =
       then raise Exit
     done;
     Micro_bench_types.Ok
-  with _ -> Micro_bench_types.Error "incorrect rev"
+  with Exit -> Micro_bench_types.Error "incorrect rev"

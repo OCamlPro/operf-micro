@@ -11,3 +11,7 @@
 /builder/parser.ml
 /builder/parser.mli
 /builder/builder
+/builder/builder.exe
+/builder/builder.opt.exe
+/builder/builder.opt
+/builder/static_config.ml

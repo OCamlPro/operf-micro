@@ -1,241 +1,163 @@
-
-type file = string
-type directory = string
-type library = string
-
-type benchmark =
-  { bench_path : directory;
-    files : file list;
-    link: library list }
-
-let empty_benchmark bench_path =
-  { bench_path;
-    files = [];
-    link = [] }
-
-let default_benchmark bench_path =
-  { (empty_benchmark bench_path)
-    with files = ["benchmark.ml"] }
-
-type context =
-  { stdlib_path : directory;
-    operf_files_path : directory }
-
-type command_part =
-  | F of file
-  | D of directory
-  | A of string
-
-type command = command_part list
+open Utils
+open Command
+open Detect_config
+open Benchmark
 
 let opt_libraries c b =
   List.map (fun l ->
-      F (Filename.concat c.stdlib_path (l ^ ".cmxa")))
+      IF (Filename.concat c.stdlib_path (l ^ ".cmxa")))
     b.link
 
 let byte_libraries c b =
   List.map (fun l ->
-      F (Filename.concat c.stdlib_path (l ^ ".cma")))
+      IF (Filename.concat c.stdlib_path (l ^ ".cma")))
     b.link
 
 let operf_files c l =
   List.map (fun f ->
-      F (Filename.concat c.operf_files_path f))
+      IF (Filename.concat c.operf_files_path f))
+    l
+
+let operf_built_files c l =
+  List.map (fun f ->
+      IF (Filename.concat c.operf_files_build_path f))
     l
 
 let bench_files b =
   List.map (fun f ->
-      F (Filename.concat b.bench_path f))
+      IF (Filename.concat b.bench_path f))
     b.files
 
-let benchmark_command b =
-  F (Filename.concat b.bench_path "benchmark.native")
+let opt_binary b =
+  Filename.concat b.bench_path "benchmark.native"
 
-let list_function_command b =
-  let tmp = Filename.temp_file "list_function" "" in
-  [ benchmark_command b; A "-o"; F tmp; A "--raw-list" ], tmp
+let byte_binary b =
+  Filename.concat b.bench_path "benchmark.byte"
 
 let ocamlopt_command c b =
-  [ F "ocamlopt"; A "-o"; F "benchmark.native"] @
-  (operf_files c [ "cycles.c" ]) @
-  opt_libraries c b @
-  (operf_files c [ "micro_bench_types.mli"; "micro_bench_types.ml" ]) @
-  bench_files b @
-  (operf_files c [ "time_stamp_counter.ml"; "micro_bench_run.ml" ])
+  Detect_config.ocamlopt_command
+    c
+    ([ A "-g" ] @
+     [ A "-o"; OF (opt_binary b) ] @
+     (operf_built_files c [ "cycles.o" ]) @
+     opt_libraries c b @
+     [ A "-I"; ID c.operf_files_path ] @
+     [ A "-I"; ID b.bench_path ] @
+     (operf_built_files c [ "micro_bench_types.cmx" ]) @
+     bench_files b @
+     (operf_built_files c [ "time_stamp_counter.cmx"; "micro_bench_run.cmx" ]))
+    None
 
 let ocamlc_command c b =
-  [ F "ocamlc"; A "-custom"; A "-o"; F "benchmark.byte"] @
-  (operf_files c [ "cycles.c" ]) @
-  byte_libraries c b @
-  (operf_files c [ "micro_bench_types.mli"; "micro_bench_types.ml" ]) @
-  bench_files b @
-  (operf_files c [ "time_stamp_counter.ml"; "micro_bench_run.ml" ])
+  Detect_config.ocamlc_command
+    c
+    ([ A "-custom"; A "-o"; OF (byte_binary b) ] @
+     (operf_built_files c [ "cycles.o" ]) @
+     byte_libraries c b @
+     [ A "-I"; ID c.operf_files_path ] @
+     [ A "-I"; ID b.bench_path ] @
+     (operf_built_files c [ "micro_bench_types.cmo" ]) @
+     bench_files b @
+     (operf_built_files c [ "time_stamp_counter.cmo"; "micro_bench_run.cmo" ]))
+    None
 
-let string_list e =
-  match e with
-  | Files.List l ->
-    List.map (function
-        | Files.String s -> s
-        | _ -> failwith "parse error")
-      l
-  | _ -> failwith "parse error"
-
-let link v e =
-  match e.link with
-  | [] -> { e with link = string_list v }
-  | _::_ -> failwith "Link field present multiple times"
-
-let files v e =
-  match e.files with
-  | [] -> { e with files = string_list v }
-  | _::_ -> failwith "Files field present multiple times"
-
-let parse_file dir v =
-  let fields e = function
-    | "link", v -> link v e
-    | "files", v -> files v e
-    | s, _ -> failwith ("Unknown field: " ^ s)
+let build_operf_file_command c native in_file =
+  let comp_command =
+    if native
+    then Detect_config.ocamlopt_command c
+    else Detect_config.ocamlc_command c
   in
-  match v with
-  | Files.Dict d ->
-    List.fold_left fields (empty_benchmark dir) d
-  | _ -> failwith ("parse error")
+  match in_file with
+  | C, f ->
+    (* circumvent problem with ocamlc ignoring -o with .c files *)
+    let src = Filename.concat c.operf_files_path (source_filename in_file) in
+    let dst = dest_filename ~native in_file in
+    let dest_c_file = Filename.concat c.operf_files_build_path (f ^ ".c") in
+    Command.copy_file src dest_c_file;
+    comp_command
+      [ A "-c";
+        A "-I"; ID c.operf_files_build_path;
+        A "-o"; OF (Filename.concat c.operf_files_build_path dst);
+        IF dest_c_file ]
+      (Some c.operf_files_build_path)
+  | _ ->
+    let src = source_filename in_file in
+    let dst = dest_filename ~native in_file in
+    comp_command
+      [ A "-c";
+        A "-I"; ID c.operf_files_build_path;
+        A "-o"; OF (Filename.concat c.operf_files_build_path dst);
+        IF (Filename.concat c.operf_files_path src) ]
+      None
 
-let command_to_string l =
-  let l =
-    List.map (function
-        | F s -> Filename.quote s
-        | D d -> Filename.quote d
-        | A a -> a)
-      l in
-  String.concat " " l
+let build_operf_files c opt =
+  let aux file =
+    match build_operf_file_command c opt file with
+    | None -> false
+    | Some c ->
+      run_command c <> None
+  in
+  List.for_all aux operf_source_files
 
-let config_operf_path = "/home/chambart/OcamlPro/git/operf-micro/"
-let config_stdlib_path = "/home/chambart/.opam/base/lib/ocaml"
+let build_opt c b =
+  match ocamlopt_command c b with
+  | None -> false
+  | Some command ->
+    let r = run_command command in
+    (r <> None && Sys.file_exists (opt_binary b))
 
+let build_byte c b =
+  match ocamlc_command c b with
+  | None -> false
+  | Some command ->
+    let r = run_command command in
+    (r <> None && Sys.file_exists (opt_binary b))
 
-type error =
-  | Parse_error of Loc.t
-  | Missing_file of file
-
-exception Error of error
-
-let print_error ppf = function
-  | Parse_error loc ->
-    Format.fprintf ppf "parse error %a" Loc.print_loc loc
-  | Missing_file file ->
-    Format.fprintf ppf "Missing file %s" file
-
-let check_build_descr b =
-  let check_file f =
-    if not (Sys.file_exists (Filename.concat b.bench_path f))
-    then raise (Error (Missing_file f)) in
-  List.iter check_file b.files
-
-let subdirectories (d:directory) : directory list =
-  let subdirectories =
-    Array.to_list
-      (Array.map (fun s -> Filename.concat d s)
-         (Sys.readdir d)) in
-  let subdirectories =
-    List.filter Sys.is_directory subdirectories in
-  subdirectories
-
-let load_build_descr (d:directory) =
-  let file_name = Filename.concat d "benchmark.build" in
-  if not (Sys.file_exists file_name)
+let build_benchmarks c l =
+  Printf.eprintf "building operf base files\n\n%!";
+  let r_byte = build_operf_files c false in
+  let r_opt = build_operf_files c true in
+  if not (r_byte && r_opt)
   then
-    if Sys.file_exists (Filename.concat d "benchmark.ml")
-    then Some (default_benchmark d)
-    else None
+    (Printf.eprintf "couldn't build operf base files\n%!";
+     exit 1)
   else
-    let channel = open_in file_name in
-    let lexbuf = Lexing.from_channel channel in
-    let pos = lexbuf.Lexing.lex_curr_p in
-    lexbuf.Lexing.lex_curr_p <-
-      { pos with Lexing.pos_fname = file_name };
-    let result =
-      try
-        Parser.file Lexer.token lexbuf
-      with
-      | Parsing.Parse_error ->
-        let loc = Loc.curr lexbuf in
-        raise (Error (Parse_error loc))
-      | e -> raise e
-    in
-    Some (parse_file d result)
-
-let rec filter_map f = function
-  | [] -> []
-  | h :: t ->
-    let t = filter_map f t in
-    match f h with
-    | None -> t
-    | Some h -> h :: t
-
-let load_build_descrs c =
-  let build_dirs = subdirectories c.operf_files_path in
-  let build_descrs = filter_map load_build_descr build_dirs in
-  List.iter check_build_descr build_descrs;
-  build_descrs
-
-let input_all =
-  let len = 1024 in
-  let buf = String.create len in
-  let rec aux ic b =
-    let n = input ic buf 0 1024 in
-    Buffer.add_substring b buf 0 n;
-    if n = 1024
-    then aux ic b
-  in
-  fun ic ->
-    let b = Buffer.create 100 in
-    aux ic b;
-    Buffer.contents b
-
-let run_and_read (c, out_file) =
-  let c = command_to_string c in
-  let r = Sys.command c in
-  if r <> 0
-  then None
-  else
-    let input = open_in out_file in
-    let s = input_all input in
-    let () = close_in input in
-    Some s
-
-let list_benchmarks b =
-  List.map (fun b ->
-      let c = list_function_command b in
-      b, run_and_read c)
-    b
-
-let () =
-  let operf_files_path =
-    if Array.length Sys.argv > 1
-    then Sys.argv.(1)
-    else Filename.concat config_operf_path "benchmarks"
-  in
-  let c =
-    { stdlib_path = config_stdlib_path;
-      operf_files_path = operf_files_path } in
-  let b =
-    try load_build_descrs c
-    with Error e ->
-      Format.eprintf "Error: %a@." print_error e;
-      exit 1
-  in
-  let () =
     List.iter (fun b ->
-        Printf.printf "%s\n%!" (command_to_string (ocamlopt_command c b)))
-      b
+        if not (build_opt c b)
+        then Printf.eprintf "couldn't build %s\n%!" (opt_binary b))
+      l
+
+let run_function_command context ~native rc b : (command * file) option =
+  let cost_option =
+    match rc.maximal_cost with
+    | None -> []
+    | Some Short -> []
+    | Some Long -> [ A "--long" ]
+    | Some Longer -> [ A "--longer" ] in
+  let time_quota_option =
+    match rc.time_quota with
+    | None -> []
+    | Some t -> [A "--time-quota"; A (string_of_float t)] in
+  let tmp = Filename.temp_file "result_" "" in
+  let prog =
+    if native
+    then (benchmark_prog ~native b, Native)
+    else (benchmark_prog ~native b, Bytecode)
   in
-  let l = list_benchmarks b in
-  List.iter (fun (b, f) ->
-      match f with
-      | None ->
-        Printf.printf "%s: FAILED\n%!" b.bench_path
-      | Some f ->
-        Printf.printf "%s:\n%s\n\n%!"
-          b.bench_path
-          f) l
+  prepare_command context prog
+    ([ A "-o"; OF tmp ] @
+     cost_option @
+     time_quota_option)
+    None
+  |> may_map (fun c -> c, tmp)
+
+let run_benchmarks context rc l =
+  filter_map (fun b ->
+      run_function_command context ~native:true rc b
+      |> may_map (fun c ->
+          match run_and_read_lines c with
+          | None -> b, []
+          | Some r ->
+            b, Measurements.read_measurement r))
+    l
+

@@ -183,22 +183,24 @@ struct
          | Some l -> selection := Some (StringSet.add s l))
       doc;
 
-    if !list || !raw_list
-    then `List (!raw_list, !output_file)
-    else
-      `Run
-        (create
-           ?verbosity:!verbosity
-           ?no_compactions:!no_compactions
-           ?time_quota:!time_quota
-           ?sampling_type:!sampling_type
-           ?stabilize_gc_between_runs:!stabilize_gc_between_runs
-           ?number_of_different_values:!number_of_different_values
-           ~maximal_cost:!maximal_cost
-           ?test_only:!test_only
-           ~selection:!selection
-           ?output_file:!output_file
-           ())
+    let command =
+      if !list || !raw_list
+      then `List !raw_list
+      else
+        `Run
+          (create
+             ?verbosity:!verbosity
+             ?no_compactions:!no_compactions
+             ?time_quota:!time_quota
+             ?sampling_type:!sampling_type
+             ?stabilize_gc_between_runs:!stabilize_gc_between_runs
+             ?number_of_different_values:!number_of_different_values
+             ~maximal_cost:!maximal_cost
+             ?test_only:!test_only
+             ~selection:!selection
+             ?output_file:!output_file
+             ()) in
+    !output_file, command
 
 end
 
@@ -226,6 +228,22 @@ module Measurement_sample = struct
     major_collections = 0;
     minor_collections = 0;
   }
+
+  let output oc m =
+    let out i =
+      output_string oc (string_of_int i);
+      output_char oc ' ' in
+    out m.runs;
+    out m.cycles;
+    out m.nanos;
+    out m.compactions;
+    out m.minor_allocated;
+    out m.major_allocated;
+    out m.promoted;
+    out m.major_collections;
+    out m.minor_collections;
+    output_char oc '\n'
+
 end
 
 module Measurement = struct
@@ -239,6 +257,14 @@ module Measurement = struct
   let create ~name ~largest_run ~sample_count ~samples = {
     name; largest_run; sample_count; samples;
   }
+
+  let output oc t =
+    output_string oc t.name;
+    output_char oc '\n';
+    for i = 0 to t.sample_count - 1 do
+      Measurement_sample.output oc t.samples.(i);
+    done;
+    output_char oc '\n'
 
 end
 
@@ -592,7 +618,7 @@ let run_all config functions =
 
 let run functions =
   match Config.parse () with
-  | `List (raw, output_file) ->
+  | output_file, `List raw ->
     let output = match output_file with
       | None -> stdout
       | Some f -> open_out f in
@@ -603,7 +629,12 @@ let run functions =
       Tester.list output functions
     end;
     close_out output
-  | `Run config ->
-    ignore (run_all config functions)
+  | output_file, `Run config ->
+    let results = run_all config functions in
+    let output = match output_file with
+      | None -> stdout
+      | Some f -> open_out f in
+    List.iter (Measurement.output output) results;
+    close_out output
 
 let () = run (Micro_bench_types.functions ())
