@@ -1,3 +1,4 @@
+open Utils
 open Command
 
 type error =
@@ -7,6 +8,7 @@ type error =
   | No_config_file
   | Not_ocaml_compiler_dir
   | No_compiler
+  | No_timestamp
 
 exception Error of error
 
@@ -64,3 +66,5 @@ val source_filename : source_file * string -> file
 val dest_filename : native:bool -> source_file * string -> file
 
 val write_timestamp : context -> unit
+
+val save_directory : context -> (directory, string) result

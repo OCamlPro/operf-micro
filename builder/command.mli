@@ -1,3 +1,4 @@
+open Utils
 
 type file = string
 type directory = string
@@ -27,3 +28,6 @@ val recursive_copy : file -> file -> unit
 val write_file : file -> (Format.formatter -> unit) -> unit
 
 val read_file : file -> string option
+
+val get_and_make_subdir : (unit -> (directory, directory) result) ->
+  string -> (directory, string) result

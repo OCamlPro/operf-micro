@@ -70,27 +70,27 @@ let measurement_file context bench measurements =
   in
   Dict dict
 
-let output_measurements oc m =
-  let aux m =
-    let out i =
-      output_string oc (string_of_int i);
-      output_char oc ' ' in
-    out m.runs;
-    out m.cycles;
-    out m.nanos;
-    out m.compactions;
-    out m.minor_allocated;
-    out m.major_allocated;
-    out m.promoted;
-    out m.major_collections;
-    out m.minor_collections;
-    output_char oc '\n'
-  in
-  List.iter (fun (s, l) ->
-      Printf.fprintf oc "%s\n" s;
-      List.iter aux l;
-      output_char oc '\n')
-    m
+(* let output_measurements oc m = *)
+(*   let aux m = *)
+(*     let out i = *)
+(*       output_string oc (string_of_int i); *)
+(*       output_char oc ' ' in *)
+(*     out m.runs; *)
+(*     out m.cycles; *)
+(*     out m.nanos; *)
+(*     out m.compactions; *)
+(*     out m.minor_allocated; *)
+(*     out m.major_allocated; *)
+(*     out m.promoted; *)
+(*     out m.major_collections; *)
+(*     out m.minor_collections; *)
+(*     output_char oc '\n' *)
+(*   in *)
+(*   List.iter (fun (s, l) -> *)
+(*       Printf.fprintf oc "%s\n" s; *)
+(*       List.iter aux l; *)
+(*       output_char oc '\n') *)
+(*     m *)
 
 let words s =
   List.filter (function "" -> false | _ -> true)

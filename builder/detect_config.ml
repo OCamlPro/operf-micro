@@ -1,3 +1,4 @@
+open Utils
 open Command
 
 type config =
@@ -30,6 +31,7 @@ type error =
   | No_config_file
   | Not_ocaml_compiler_dir
   | No_compiler
+  | No_timestamp
 
 exception Error of error
 
@@ -99,6 +101,37 @@ let is_ocaml_building_directory path =
 
 let find_ocaml_root_directory ?(path=run_directory) () =
   find_ancessor is_ocaml_building_directory path
+
+let make_directory dir =
+  try Unix.mkdir dir 0o777
+  with Unix.Unix_error (Unix.EEXIST, _, _) -> ()
+
+let home_directory () =
+  try
+    let d = Sys.getenv "HOME" in
+    if Sys.file_exists d
+    then
+      if Sys.is_directory d
+      then Ok d
+      else Err (d ^ " is not a directory")
+    else Err ("directory " ^ d ^ " doesn't exists")
+  with Not_found -> Err "Environment variable HOME is not set"
+
+let operf_home_directory () =
+  get_and_make_subdir
+    (fun () -> get_and_make_subdir home_directory ".operf")
+    "micro"
+
+let named_directory context =
+  get_and_make_subdir operf_home_directory
+    context.config.name
+
+let save_directory context =
+  match context.timestamp with
+  | None -> raise (Error No_timestamp)
+  | Some timestamp ->
+    get_and_make_subdir (fun () -> named_directory context)
+      timestamp
 
 let operf_subdir path =
   Filename.concat path ".operf"
@@ -217,10 +250,6 @@ let copy_base_files src_root dst_root =
       let dst = Filename.concat (micro_subdir dst_root) f in
       copy_file src dst)
     operf_source_files
-
-let make_directory dir =
-  try Unix.mkdir dir 0o777
-  with Unix.Unix_error (Unix.EEXIST, _, _) -> ()
 
 let share_directory = Filename.concat Static_config.prefix "share"
 

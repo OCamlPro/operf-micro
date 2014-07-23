@@ -6,6 +6,7 @@ open Builder
 type error =
   | Mandatory_option of string
   | Unexpected of string
+  | Problem_creating_save_directory of string
 
 exception Error of error
 
@@ -49,7 +50,7 @@ let list_subcommand () =
 let run_subcommand () =
   let time_quota = ref None in
   let maximal_cost = ref None in
-  let output_dir = ref (Sys.getcwd ()) in
+  let output_dir = ref None in
   let set_quota = Arg.Float (fun v -> time_quota := Some v) in
   let set_cost c = Arg.Unit (fun () -> maximal_cost := Some c) in
   let run () =
@@ -58,9 +59,17 @@ let run_subcommand () =
     let build_descr = load_build_descrs context in
     let rc = { maximal_cost = !maximal_cost; time_quota = !time_quota } in
     let m = run_benchmarks context rc build_descr in
+    let output_dir =
+      match !output_dir with
+      | Some d -> d
+      | None ->
+        match Detect_config.save_directory context with
+        | Err s -> raise (Error (Problem_creating_save_directory s))
+        | Ok d -> d
+    in
     let aux (bench, measurements) =
       let file = Measurements.measurement_file context bench measurements in
-      let filename = Filename.concat !output_dir (bench.bench_name ^ ".result") in
+      let filename = Filename.concat output_dir (bench.bench_name ^ ".result") in
       Command.write_file filename (fun ppf -> Files.print ppf file)
     in
     List.iter aux m
@@ -70,9 +79,9 @@ let run_subcommand () =
     "-q", set_quota, " alias of --time-quota";
     "--long", set_cost Long, " allow running long test";
     "--longer", set_cost Longer, " allow running longer test";
-    "--output", Arg.Set_string output_dir,
+    "--output", set_string output_dir,
     " directory where .result files will be recorded";
-    "-o", Arg.Set_string output_dir, " same as --output";
+    "-o", set_string output_dir, " same as --output";
   ],
   (fun _s -> ()),
   "",
@@ -127,6 +136,8 @@ let print_error ppf = function
     Format.fprintf ppf "Missing mandatory option %s" opt
   | Unexpected arg ->
     Format.fprintf ppf "Unexpected command line argument %s" arg
+  | Problem_creating_save_directory s ->
+    Format.fprintf ppf "Couldn't create save directory: %s" s
 
 let print_error_benchmark ppf = function
   | Missing_file file ->
@@ -145,6 +156,8 @@ let print_detect_config_error ppf = function
     Format.fprintf ppf "couldn't find ocaml compilation directory"
   | No_compiler ->
     Format.fprintf ppf "couldn't find a working ocaml compiler"
+  | No_timestamp ->
+    Format.fprintf ppf "timestamp file is missing"
 
 let print_errors ppf = function
   | Error e -> print_error ppf e

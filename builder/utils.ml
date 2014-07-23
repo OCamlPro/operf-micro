@@ -18,3 +18,7 @@ let rec filter_map f = function
 
 let ( |> ) x f = f x
 let ( @@ ) f x = f x
+
+type ('l, 'r) result =
+  | Ok of 'l
+  | Err of 'r

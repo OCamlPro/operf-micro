@@ -1,3 +1,4 @@
+open Utils
 
 let debug = false
 
@@ -241,3 +242,23 @@ let read_file file =
   | Some { Unix.st_kind = Unix.S_REG; _ } ->
     Some (input_all_file file)
   | _ -> None
+
+let get_and_make_subdir f subdir =
+  match f () with
+  | Err e -> Err e
+  | Ok d ->
+    let sub = Filename.concat d subdir in
+    if Sys.file_exists sub
+    then
+      if Sys.is_directory sub
+      then Ok sub
+      else Err (sub ^ " is not a directory")
+    else
+      try
+        Unix.mkdir sub 0o777;
+        Ok sub
+      with
+      | Unix.Unix_error (e,_,_) ->
+        Err
+          (Printf.sprintf "Error while mkdir %s: %s"
+             sub (Unix.error_message e))
