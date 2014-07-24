@@ -32,6 +32,7 @@ type error =
   | Not_ocaml_compiler_dir
   | No_compiler
   | No_timestamp
+  | Missing_directory of directory
 
 exception Error of error
 
@@ -296,6 +297,13 @@ let initialize_in_compiler_dir ?path name =
 
 let initialize_with_bin_dir ?(path=run_directory) name ocaml_bin_dir =
   let root_dir = path in
+  let ocaml_bin_dir =
+    if Sys.file_exists ocaml_bin_dir
+    then if Sys.is_directory ocaml_bin_dir
+      then ocaml_bin_dir
+      else Filename.dirname ocaml_bin_dir
+    else raise (Error (Missing_directory ocaml_bin_dir))
+  in
   let config =
     { name = name;
       ocaml_bin_dir;
@@ -326,10 +334,15 @@ let find_ocamlopt config =
   find_bin config "ocamlopt"
 
 let find_ocamlrun config =
+  let bin_name = "ocamlrun"^bin_suffix in
   let bin d =
     Filename.concat
       (Filename.concat config.ocaml_bin_dir d)
-      ("ocamlrun"^bin_suffix) in
+      bin_name in
+  let root_ocamlrun = Filename.concat config.ocaml_bin_dir bin_name in
+  if Sys.file_exists root_ocamlrun
+  then Some root_ocamlrun
+  else
   if Sys.file_exists (bin "byterun")
   then Some (bin "byterun")
   else

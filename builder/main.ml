@@ -158,6 +158,8 @@ let print_detect_config_error ppf = function
     Format.fprintf ppf "couldn't find a working ocaml compiler"
   | No_timestamp ->
     Format.fprintf ppf "timestamp file is missing"
+  | Missing_directory d ->
+    Format.fprintf ppf "The directory %s doesn't exists" d
 
 let print_errors ppf = function
   | Error e -> print_error ppf e

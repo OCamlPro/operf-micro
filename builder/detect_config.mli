@@ -9,6 +9,7 @@ type error =
   | Not_ocaml_compiler_dir
   | No_compiler
   | No_timestamp
+  | Missing_directory of directory
 
 exception Error of error
 
