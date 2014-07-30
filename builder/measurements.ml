@@ -70,6 +70,136 @@ let measurement_file context bench measurements =
   in
   Dict dict
 
+type runs = {
+  name : string;
+  list : measurement_sample list;
+}
+
+type recorded_measurements = {
+  suite_name : string;
+  name : string;
+  date : string;
+  run_list : runs list;
+}
+
+module Reader = struct
+  type measurement_sample' = {
+    runs              : int option;
+    cycles            : int option;
+    nanos             : int option;
+    compactions       : int option;
+    minor_allocated   : int option;
+    major_allocated   : int option;
+    promoted          : int option;
+    major_collections : int option;
+    minor_collections : int option;
+  }
+
+  type runs' = {
+    name : string option;
+    list : measurement_sample list option;
+  }
+
+  type recorded_measurements' = {
+    suite_name : string option;
+    name : string option;
+    date : string option;
+    run_list : runs list option;
+  }
+
+  let add_measurement_field (m:measurement_sample') (s, v) =
+    let v =
+      match v with
+      | Int i -> i
+      | _ -> failwith "parse error"
+    in
+    match s with
+    | "runs" -> { m with runs = Some v }
+    | "cycles" -> { m with cycles = Some v }
+    | "nanos" -> { m with nanos = Some v }
+    | "compactions" -> { m with compactions = Some v }
+    | "minor_allocated" -> { m with minor_allocated = Some v }
+    | "major_allocated" -> { m with major_allocated = Some v }
+    | "promoted" -> { m with promoted = Some v }
+    | "major_collections" -> { m with major_collections = Some v }
+    | "minor_collections" -> { m with minor_collections = Some v }
+    | _ -> m
+
+  let read_measurement_sample v : measurement_sample =
+    let empty : measurement_sample' =
+      {
+        runs = None;
+        cycles = None;
+        nanos = None;
+        compactions = None;
+        minor_allocated = None;
+        major_allocated = None;
+        promoted = None;
+        major_collections = None;
+        minor_collections = None;
+      } in
+    let r = match v with
+      | Dict l -> List.fold_left add_measurement_field empty l
+      | _ -> failwith "parse error" in
+    match r with
+    | { runs = Some runs;
+        cycles = Some cycles;
+        nanos = Some nanos;
+        compactions = Some compactions;
+        minor_allocated = Some minor_allocated;
+        major_allocated = Some major_allocated;
+        promoted = Some promoted;
+        major_collections = Some major_collections;
+        minor_collections = Some minor_collections } ->
+       { runs; cycles; nanos; compactions; minor_allocated;
+         major_allocated; promoted; major_collections; minor_collections; }
+    | _ -> failwith "parse error"
+
+  let add_runs_field r (s, v) : runs' =
+    match s, v with
+    | "name", String v -> { r with name = Some v }
+    | "list", List l ->
+       { r with list = Some (List.map read_measurement_sample l) }
+    | _ -> r
+
+  let read_runs v : runs =
+    let empty : runs' = { name = None; list = None } in
+    let r = match v with
+      | Dict l -> List.fold_left add_runs_field empty l
+      | _ -> failwith "parse error" in
+    match r with
+    | { name = Some name; list = Some list } -> { name; list }
+    | _ -> failwith "parse error"
+
+  let add_record_field r (s, v) : recorded_measurements' =
+    match s, v with
+    | "suite_name", String v -> { r with suite_name = Some v }
+    | "name", String v -> { r with name = Some v }
+    | "date", String v -> { r with date = Some v }
+    | "runs", List l ->
+       { r with run_list = Some (List.map read_runs l) }
+    | _ -> r
+
+  let read_record v : recorded_measurements =
+    let empty : recorded_measurements' =
+      { suite_name = None; name = None; date = None; run_list = None } in
+    let r = match v with
+      | Dict l -> List.fold_left add_record_field empty l
+      | _ -> failwith "parse error" in
+    match r with
+    | { suite_name = Some suite_name;
+        name = Some name;
+        date = Some date;
+        run_list = Some run_list } ->
+       { suite_name; name; run_list; date }
+    | _ -> failwith "parse error"
+
+end
+
+let read_measurement_file ~filename:file =
+  let file = load_config_file file in
+  Reader.read_record file
+
 (* let output_measurements oc m = *)
 (*   let aux m = *)
 (*     let out i = *)
@@ -96,7 +226,7 @@ let words s =
   List.filter (function "" -> false | _ -> true)
     (split ' ' s)
 
-let read_measurement l : measurements list =
+let read_measurement ~contents:text : measurements list =
   let error s =
     Printf.eprintf "malformed input line: %s\n%!" s;
     raise Exit
@@ -137,4 +267,72 @@ let read_measurement l : measurements list =
     | name :: t ->
       aux t name [] acc
   in
-  aux_name l []
+  aux_name (lines text) []
+
+
+type results_mat = (int * float) array
+
+let affine_adjustment (r:results_mat) =
+  let len = float (Array.length r) in
+  let mean_x =
+    let sum_x = Array.fold_right (fun (x,_) acc -> x + acc) r 0 in
+    (float sum_x) /. len in
+  let mean_y =
+    let sum_y = Array.fold_right (fun (_,y) acc -> y +. acc) r 0. in
+    sum_y /. len in
+  let variance_x =
+    let sumvar =
+      Array.fold_right
+        (fun (x,_) acc ->
+         let v = (float x) -. mean_x in v *. v +. acc)
+        r 0.
+    in
+    sumvar /. len
+  in
+  let covariance_x_y =
+    let sumcovar =
+      Array.fold_right
+        (fun (x,y) acc ->
+         let v = ((float x) -. mean_x) *. (y -. mean_y) in
+         v +. acc)
+        r 0.
+    in
+    sumcovar /. len
+  in
+  let a = covariance_x_y /. variance_x in
+  let b = mean_y -. a *. mean_x in
+  a, b
+
+type column =
+  | Cycles
+  | Nanos
+  | Compactions
+  | Minor_allocated
+  | Major_allocated
+  | Promoted
+  | Major_collections
+  | Minor_collections
+
+let result_column c m =
+  let v =
+    match c with
+    | Cycles -> m.cycles
+    | Nanos -> m.nanos
+    | Compactions -> m.compactions
+    | Minor_allocated -> m.minor_allocated
+    | Major_allocated -> m.major_allocated
+    | Promoted -> m.promoted
+    | Major_collections -> m.major_collections
+    | Minor_collections -> m.minor_collections
+  in
+  m.runs, float v
+
+type result =
+    { mean_value : float;
+      constant : float }
+
+let analyse_measurements ml c =
+  let a = Array.of_list (List.map (result_column c) ml) in
+  let mean_value, constant = affine_adjustment a in
+    { mean_value;
+      constant }

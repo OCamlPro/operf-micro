@@ -155,9 +155,9 @@ let run_benchmarks context rc l =
   filter_map (fun b ->
       run_function_command context ~native:true rc b
       |> may_map (fun c ->
-          match run_and_read_lines c with
+          match run_and_read c with
           | None -> b, []
           | Some r ->
-            b, Measurements.read_measurement r))
+            b, Measurements.read_measurement ~contents:r))
     l
 

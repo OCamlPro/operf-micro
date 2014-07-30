@@ -39,6 +39,7 @@ type context =
 val load_config_file : file -> Files.file
 
 val find_ocaml_root_directory : ?path:directory -> unit -> directory option
+val find_operf_directory : ?path:directory -> unit -> directory option
 
 val load_operf_config_file : ?path:directory -> unit -> config
 
@@ -68,4 +69,6 @@ val dest_filename : native:bool -> source_file * string -> file
 
 val write_timestamp : context -> unit
 
+
+val operf_home_directory : unit -> (directory, string) result
 val save_directory : context -> (directory, string) result

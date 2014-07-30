@@ -73,15 +73,6 @@ let check_build_descr b =
     then raise (Error (Missing_file f)) in
   List.iter check_file b.files
 
-let subdirectories (d:directory) : directory list =
-  let subdirectories =
-    Array.to_list
-      (Array.map (fun s -> Filename.concat d s)
-         (Sys.readdir d)) in
-  let subdirectories =
-    List.filter Sys.is_directory subdirectories in
-  subdirectories
-
 let load_build_descr (d:directory) =
   let file_name = Filename.concat d "benchmark.build" in
   if not (Sys.file_exists file_name)

@@ -1,0 +1,5 @@
+# -*- conf -*-
+normal
+max_indent = 2
+align_params = never
+syntax = mll

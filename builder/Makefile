@@ -1,8 +1,8 @@
 
 include ../Makefile.conf
 
-WARN=-w +1..45-4-44
-OPT= $(WARN) -g
+WARN=-w +1..45-4-44-42
+OPT= $(WARN) -g -bin-annot -principal
 
 OBJS=\
   static_config.cmo utils.cmo \
@@ -48,7 +48,7 @@ install: $(BIN)
 clean:
 	rm -f static_config.ml
 	rm -f parser.ml parser.mli lexer.ml
-	rm -f *.o *.a *.cmx *.cmo *.cmi
+	rm -f *.o *.a *.cmx *.cmo *.cmi *.cmt *.cmti
 	rm -f builder builder.opt
 
 .PHONY: all install depend clean

@@ -7,6 +7,7 @@ type error =
   | Mandatory_option of string
   | Unexpected of string
   | Problem_creating_save_directory of string
+  | No_save_directory of string
 
 exception Error of error
 
@@ -114,19 +115,114 @@ let init_subcommand () =
 
 let clean_subcommand () =
   let clean () =
-    failwith "TODO"
+    match Detect_config.find_operf_directory () with
+    | None ->
+       Format.printf "not found@."
+    | Some operf_root_dir ->
+       let operf_dir = Filename.concat operf_root_dir ".operf" in
+       let sdir = Filename.concat operf_dir "micro" in
+       Command.remove sdir;
+       try
+         Unix.rmdir operf_dir
+       with _ -> ()
   in
   [],
   (fun _s -> ()),
-  "",
+  "\n\
+   clean the .operf subdirectory",
   clean
+
+type timestamped_result =
+    { sr_timestamp: Detect_config.timestamp;
+      sr_dir : Command.directory;
+      sr_files : Command.file list }
+
+type results_files =
+    { res_name : string;
+      res_dir : Command.directory;
+      res : timestamped_result list }
+
+let print_timestamped_result ppf r =
+  let rec print_files ppf files =
+    let f file = Filename.chop_extension (Filename.basename file) in
+    match files with
+    | [] -> ()
+    | [file] -> Format.fprintf ppf "%s" (f file)
+    | file :: t -> Format.fprintf ppf "%s@ " (f file); print_files ppf t
+  in
+  Format.fprintf
+    ppf "@[<h 2>%s:@ %a@]"
+    r.sr_timestamp
+    print_files r.sr_files
+
+let print_result_files ppf r =
+  let rec ptr ppf l =
+    match l with
+    | [] -> ()
+    | [r] -> print_timestamped_result ppf r
+    | r :: t ->
+       Format.fprintf
+         ppf "%a@ "
+         print_timestamped_result r;
+       ptr ppf t
+  in
+  Format.fprintf
+    ppf "@[<v 2>%s@ %a@]" r.res_name
+    ptr r.res
+
+let load_result_list () =
+  let timestamped_result dir =
+    let sr_files =
+      Array.to_list (Sys.readdir dir)
+      |> List.filter (fun f -> Filename.check_suffix f ".result")
+      |> List.filter (fun v -> not (Sys.is_directory (Filename.concat dir v)))
+    in
+    { sr_timestamp = Filename.basename dir;
+      sr_dir = dir;
+      sr_files }
+  in
+  let res dir =
+    let subdirs = Command.subdirectories dir in
+    { res_name = Filename.basename dir;
+      res_dir = dir;
+      res = List.map timestamped_result subdirs }
+  in
+  match Detect_config.operf_home_directory () with
+  | Err s -> raise (Error (No_save_directory s))
+  | Ok home_dir ->
+     let bench_named_dirs = Command.subdirectories home_dir in
+     List.map res bench_named_dirs
+
+let results_subcommand () =
+  let results () =
+    let l = load_result_list () in
+    List.iter (fun v -> Format.printf "%a@." print_result_files v) l
+  in
+  [],
+  (fun _s -> ()),
+  "\n\
+   list recorded results",
+  results
+
+let compare_subcommand () =
+  let compare () =
+    let l = load_result_list () in
+    List.iter (fun v -> Format.printf "%a@." print_result_files v) l
+  in
+  [],
+  (fun _s -> ()),
+  "\n\
+   do things...",
+  compare
 
 let subcommands =
   [ "init", init_subcommand;
     "build", build_subcommand;
     "list", list_subcommand;
     "run", run_subcommand;
-    "clean", clean_subcommand;]
+    "clean", clean_subcommand;
+    "results", results_subcommand;
+    "compare", compare_subcommand ]
 
 let error fmt =
   Format.kfprintf (fun _ppf -> exit 1) Format.err_formatter fmt
@@ -138,6 +234,8 @@ let print_error ppf = function
     Format.fprintf ppf "Unexpected command line argument %s" arg
   | Problem_creating_save_directory s ->
     Format.fprintf ppf "Couldn't create save directory: %s" s
+  | No_save_directory s ->
+     Format.fprintf ppf "Couldn't find save directory: %s" s
 
 let print_error_benchmark ppf = function
   | Missing_file file ->
