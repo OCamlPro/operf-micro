@@ -138,6 +138,10 @@ let run_function_command context ~native rc b : (command * file) option =
     match rc.time_quota with
     | None -> []
     | Some t -> [A "--time-quota"; A (string_of_float t)] in
+  let different_values_option =
+    match rc.different_values with
+    | None -> []
+    | Some t -> [A "--different-values"; A (string_of_int t)] in
   let tmp = Filename.temp_file "result_" "" in
   let prog =
     if native
@@ -147,7 +151,8 @@ let run_function_command context ~native rc b : (command * file) option =
   prepare_command context prog
     ([ A "-o"; OF tmp ] @
      cost_option @
-     time_quota_option)
+     time_quota_option @
+     different_values_option)
     None
   |> may_map (fun c -> c, tmp)
 

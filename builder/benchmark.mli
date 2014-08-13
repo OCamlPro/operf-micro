@@ -16,7 +16,8 @@ type cost =
 
 type run_config =
   { maximal_cost : cost option;
-    time_quota : float option }
+    time_quota : float option;
+    different_values : int option }
 
 type error =
   | Missing_file of file

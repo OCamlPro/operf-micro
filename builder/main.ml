@@ -52,13 +52,17 @@ let run_subcommand () =
   let time_quota = ref None in
   let maximal_cost = ref None in
   let output_dir = ref None in
+  let different_values = ref None in
   let set_quota = Arg.Float (fun v -> time_quota := Some v) in
   let set_cost c = Arg.Unit (fun () -> maximal_cost := Some c) in
+  let set_different_values i = different_values := Some i in
   let run () =
     let config = Detect_config.load_operf_config_file () in
     let context = Detect_config.load_context config in
     let build_descr = load_build_descrs context in
-    let rc = { maximal_cost = !maximal_cost; time_quota = !time_quota } in
+    let rc = { maximal_cost = !maximal_cost;
+               time_quota = !time_quota;
+               different_values = !different_values } in
     let m = run_benchmarks context rc build_descr in
     let output_dir =
       match !output_dir with
@@ -78,6 +82,8 @@ let run_subcommand () =
   in
   [ "--time-quota", set_quota, "t time_quota";
     "-q", set_quota, " alias of --time-quota";
+    "--different-values", Arg.Int set_different_values, " number of different values on which functions are evaluated";
+    "-n", Arg.Int set_different_values, " alias of --different-values";
     "--long", set_cost Long, " allow running long test";
     "--longer", set_cost Longer, " allow running longer test";
     "--output", set_string output_dir,
@@ -143,7 +149,7 @@ type results_files =
       res : timestamped_result list }
 
 let last_timestamped rf =
-  let compare { sr_timestamp = ts1; _ } { sr_timestamp = ts2; _ } = compare ts1 ts2 in
+  let compare { sr_timestamp = ts1; _ } { sr_timestamp = ts2; _ } = - (compare ts1 ts2) in
   match List.sort compare rf.res with
   | [] -> None
   | h :: _ -> Some h
@@ -217,7 +223,7 @@ let results_subcommand () =
             | None -> ()
             | Some res ->
                let results = Measurements.load_results Measurements.Cycles res.sr_files in
-               Format.printf "@[<v 2>%s:@ " v.res_name;
+               Format.printf "@[<v 2>%s %s:@ " v.res_name res.sr_timestamp;
                StringMap.iter
                  (fun bench_name res_map ->
                   Format.printf "@[<v 2>%s:@ " bench_name;
