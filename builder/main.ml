@@ -142,6 +142,12 @@ type results_files =
       res_dir : Command.directory;
       res : timestamped_result list }
 
+let last_timestamped rf =
+  let compare { sr_timestamp = ts1; _ } { sr_timestamp = ts2; _ } = compare ts1 ts2 in
+  match List.sort compare rf.res with
+  | [] -> None
+  | h :: _ -> Some h
+
 let print_timestamped_result ppf r =
   let rec print_files ppf files =
     let f file = Filename.chop_extension (Filename.basename file) in
@@ -175,7 +181,8 @@ let load_result_list () =
     let sr_files =
       Array.to_list (Sys.readdir dir)
       |> List.filter (fun f -> Filename.check_suffix f ".result")
-      |> List.filter (fun v -> not (Sys.is_directory (Filename.concat dir v)))
+      |> List.map (Filename.concat dir)
+      |> List.filter (fun v -> not (Sys.is_directory v))
     in
     { sr_timestamp = Filename.basename dir;
       sr_dir = dir;
@@ -194,20 +201,92 @@ let load_result_list () =
      List.map res bench_named_dirs
 
 let results_subcommand () =
+  let l = ref [] in
   let results () =
-    let l = load_result_list () in
-    List.iter (fun v -> Format.printf "%a@." print_result_files v) l
+    match !l with
+    | [] ->
+       let l = load_result_list () in
+       List.iter (fun v -> Format.printf "%a@." print_result_files v) l
+    | selected ->
+       let l = load_result_list () in
+       List.iter
+         (fun v ->
+          if List.mem v.res_name selected
+          then
+            match last_timestamped v with
+            | None -> ()
+            | Some res ->
+               let results = Measurements.load_results Measurements.Cycles res.sr_files in
+               Format.printf "@[<v 2>%s:@ " v.res_name;
+               StringMap.iter
+                 (fun bench_name res_map ->
+                  Format.printf "@[<v 2>%s:@ " bench_name;
+                  StringMap.iter
+                    (fun fun_name result ->
+                     Format.printf "%s: %f@ " fun_name result.Measurements.mean_value)
+                    res_map;
+                  Format.pp_close_box Format.std_formatter ();
+                  Format.printf "@]")
+                 results;
+               Format.printf "@]@.")
+         l;
+       Format.printf "@."
   in
   [],
-  (fun _s -> ()),
-  "\n\
-   list recorded results",
+  (fun s -> l := s :: !l),
+  "[<names>]\n\
+   if no name provided, list recorded results, otherwise print last results",
   results
+
+let load_all_results () =
+  let aux map v =
+    match last_timestamped v with
+    | None -> map
+    | Some res ->
+      let results = Measurements.load_results Measurements.Cycles res.sr_files in
+      StringMap.add v.res_name results map
+  in
+  List.fold_left aux StringMap.empty (load_result_list ())
+
+let cut_pad width s =
+  let len = String.length s in
+  if len >= width
+  then String.sub s 0 width
+  else s ^ (String.make (width - len) ' ')
+
+let print_compared_results ppf width name_width comp =
+  let print ppf result_name map =
+    Format.pp_print_string ppf (cut_pad name_width result_name);
+    let print ppf _set_name map =
+      let print ppf _function_name value =
+        (match value with
+         | None -> Format.pp_print_string ppf (String.make width ' ')
+         | Some ratio -> Format.fprintf ppf "%*.2f" width ratio);
+        Format.pp_print_string ppf " "
+      in
+      StringMap.iter (print ppf) map in
+    StringMap.iter (print ppf) map;
+    Format.fprintf ppf "@."
+  in
+  Format.pp_print_string ppf (String.make name_width ' ');
+  StringMap.iter
+    (fun _set_name sub -> StringMap.iter
+        (fun sub _ ->
+           Format.pp_print_string ppf (cut_pad width sub);
+           Format.pp_print_string ppf " ")
+        sub)
+    (snd (StringMap.choose comp));
+  Format.fprintf ppf "@.";
+  StringMap.iter (print ppf) comp
 
 let compare_subcommand () =
   let compare () =
-    let l = load_result_list () in
-    List.iter (fun v -> Format.printf "%a@." print_result_files v) l
+    let result_map = load_all_results () in
+    let _reference, comp = Measurements.compare_measurements result_map in
+    let ppf = Format.std_formatter in
+    let name_width = 10 in
+    let width = 7 in
+    print_compared_results ppf width name_width comp
   in
   [],
   (fun _s -> ()),
@@ -259,10 +338,15 @@ let print_detect_config_error ppf = function
   | Missing_directory d ->
     Format.fprintf ppf "The directory %s doesn't exists" d
 
+let print_measurements_error ppf = function
+  | Measurements.Missing_field s ->
+     Format.fprintf ppf "Missing file field %s" s
+
 let print_errors ppf = function
   | Error e -> print_error ppf e
   | Benchmark.Error e -> print_error_benchmark ppf e
   | Detect_config.Error e -> print_detect_config_error ppf e
+  | Measurements.Error e -> print_measurements_error ppf e
   | e ->
     let bt = Printexc.get_backtrace () in
     let exn = Printexc.to_string e in

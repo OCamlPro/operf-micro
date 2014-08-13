@@ -22,7 +22,7 @@ let rec print ppf = function
     aux l;
     fprintf ppf "@]}"
   | List l ->
-    fprintf ppf "{@[@<2> ";
+    fprintf ppf "[@[@<2> ";
     let rec aux = function
       | [] -> ()
       | [v] ->
@@ -32,7 +32,7 @@ let rec print ppf = function
         aux t
     in
     aux l;
-    fprintf ppf "@]}"
+    fprintf ppf "@]]"
   | String s ->
     pp_print_char ppf '\"';
     pp_print_string ppf (String.escaped s);

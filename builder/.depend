@@ -1,3 +1,5 @@
+analysis_result.cmo :
+analysis_result.cmx :
 benchmark.cmo : utils.cmo files.cmo detect_config.cmi command.cmi \
     benchmark.cmi
 benchmark.cmx : utils.cmx files.cmx detect_config.cmx command.cmx \
@@ -16,6 +18,8 @@ files.cmo :
 files.cmx :
 lexer.cmo : parser.cmi
 lexer.cmx : parser.cmx
+linear_algebra.cmo : utils.cmo linear_algebra.cmi
+linear_algebra.cmx : utils.cmx linear_algebra.cmi
 loc.cmo : loc.cmi
 loc.cmx : loc.cmi
 main.cmo : utils.cmo measurements.cmi loc.cmi files.cmo detect_config.cmi \
@@ -37,6 +41,7 @@ utils.cmx :
 benchmark.cmi : detect_config.cmi command.cmi
 command.cmi : utils.cmo
 detect_config.cmi : utils.cmo loc.cmi files.cmo command.cmi
+linear_algebra.cmi : utils.cmo
 loc.cmi :
 measurements.cmi : files.cmo detect_config.cmi benchmark.cmi
 parser.cmi : files.cmo

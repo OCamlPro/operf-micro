@@ -1,5 +1,11 @@
+open Utils
 open Detect_config
 open Benchmark
+
+type error =
+  | Missing_field of string
+
+exception Error of error
 
 type measurement_sample = {
   runs              : int;
@@ -45,6 +51,16 @@ type column =
 
 type result =
     { mean_value : float;
-      constant : float }
+      constant : float;
+      max_value : int * float;
+      min_value : int * float }
 
-val analyse_measurements : measurement_sample list -> column -> result
+val analyse_measurement : column -> measurement_sample list -> result
+
+val analyse_measurements : column -> recorded_measurements -> result StringMap.t
+
+val load_results : column -> Command.file list -> result StringMap.t StringMap.t
+
+val compare_measurements :
+  ?reference:string -> result StringMap.t StringMap.t StringMap.t ->
+  string * float option StringMap.t StringMap.t StringMap.t

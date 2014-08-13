@@ -3,6 +3,11 @@ open Detect_config
 open Files
 open Utils
 
+type error =
+  | Missing_field of string
+
+exception Error of error
+
 type measurement_sample = {
   runs              : int;
   cycles            : int;
@@ -180,19 +185,29 @@ module Reader = struct
        { r with run_list = Some (List.map read_runs l) }
     | _ -> r
 
+  let missing_field s =
+    raise (Error (Missing_field s))
+
   let read_record v : recorded_measurements =
     let empty : recorded_measurements' =
       { suite_name = None; name = None; date = None; run_list = None } in
     let r = match v with
       | Dict l -> List.fold_left add_record_field empty l
-      | _ -> failwith "parse error" in
+      | _ -> failwith "Not a dictionnary" in
     match r with
     | { suite_name = Some suite_name;
         name = Some name;
         date = Some date;
         run_list = Some run_list } ->
        { suite_name; name; run_list; date }
-    | _ -> failwith "parse error"
+    | { suite_name = None; _ } ->
+       missing_field "suite_name"
+    | { name = None; _ } ->
+       missing_field "name"
+    | { date = None; _ } ->
+       missing_field "name"
+    | { run_list = None; _ } ->
+       missing_field "runs"
 
 end
 
@@ -329,10 +344,71 @@ let result_column c m =
 
 type result =
     { mean_value : float;
-      constant : float }
+      constant : float;
+      max_value : int * float;
+      min_value : int * float }
 
-let analyse_measurements ml c =
+let analyse_measurement c ml =
   let a = Array.of_list (List.map (result_column c) ml) in
   let mean_value, constant = affine_adjustment a in
-    { mean_value;
-      constant }
+  let min_value =
+    Array.fold_left (fun (row_min, val_min) (row,value) ->
+      let value = (value -. constant) /. float row in
+      if val_min < value
+      then (row_min, val_min)
+      else (row,value))
+      (0, max_float) a
+  in
+  let max_value =
+    Array.fold_left (fun (row_max, val_max) (row,value) ->
+      let value = (value -. constant) /. float row in
+      if val_max > value
+      then (row_max, val_max)
+      else (row,value))
+      (0, min_float) a
+  in
+  { mean_value;
+    constant;
+    min_value;
+    max_value }
+
+let analyse_measurements c (rm:recorded_measurements) =
+  List.fold_left
+    (fun map { name; list } ->
+     StringMap.add name (analyse_measurement c list) map)
+    StringMap.empty rm.run_list
+
+let load_results c files =
+  let aux map filename =
+    let name = Filename.chop_extension (Filename.basename filename) in
+    let file = read_measurement_file ~filename in
+    StringMap.add name (analyse_measurements c file) map
+  in
+  List.fold_left aux StringMap.empty files
+
+let compare_measurements ?reference results =
+  let reference, ref_value =
+    match reference with
+    | Some reference when StringMap.mem reference results ->
+      reference, StringMap.find reference results
+    | Some reference ->
+      Format.eprintf "Warning: %s does not belongs to the results" reference;
+      StringMap.min_binding results
+    | None ->
+      StringMap.min_binding results
+  in
+  let merge _key reference value =
+    match reference, value with
+    | None, _ -> None
+    | Some _, None -> Some None
+    | Some reference, Some result ->
+      Some (Some (result.mean_value /. reference.mean_value)) in
+  let merge2 _key reference value =
+    match reference, value with
+    | None, _ -> None
+    | Some reference, None -> Some (StringMap.merge merge reference StringMap.empty)
+    | Some reference, Some result -> Some (StringMap.merge merge reference result)
+  in
+  let aux results = StringMap.merge merge2 ref_value results in
+  reference, StringMap.map aux results
+
