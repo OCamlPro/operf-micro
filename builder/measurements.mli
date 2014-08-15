@@ -19,11 +19,15 @@ type measurement_sample = {
   minor_collections : int;
 }
 
-type measurements = string * measurement_sample list
+type measurements = string * (string * string) list * measurement_sample list
+
+type 'a group =
+  | Simple of 'a
+  | Group of (string * 'a) list
 
 type runs = {
   name : string;
-  list : measurement_sample list;
+  list : (measurement_sample list) group;
 }
 
 type recorded_measurements = {
@@ -57,10 +61,10 @@ type result =
 
 val analyse_measurement : column -> measurement_sample list -> result
 
-val analyse_measurements : column -> recorded_measurements -> result StringMap.t
+val analyse_measurements : column -> recorded_measurements -> result group StringMap.t
 
-val load_results : column -> Command.file list -> result StringMap.t StringMap.t
+val load_results : column -> Command.file list -> result group StringMap.t StringMap.t
 
 val compare_measurements :
-  ?reference:string -> result StringMap.t StringMap.t StringMap.t ->
-  string * float option StringMap.t StringMap.t StringMap.t
+  ?reference:string -> result group StringMap.t StringMap.t StringMap.t ->
+  string * float option group StringMap.t StringMap.t StringMap.t

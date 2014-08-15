@@ -19,8 +19,6 @@ val run_and_read : (command * file) -> string option
 
 val run_and_read_lines : (command * file) -> string list option
 
-val split : char -> string -> string list
-
 val copy_file : file -> file -> unit
 
 val recursive_copy : file -> file -> unit
@@ -35,5 +33,3 @@ val get_and_make_subdir : (unit -> (directory, directory) result) ->
 val remove : directory -> unit
 
 val subdirectories : directory -> directory list
-
-val lines : string -> string list

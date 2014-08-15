@@ -62,11 +62,32 @@ let rec map_tail_rec f l =
   in
   list_rev (aux [] f l)
 
+let rec rev_map_tail_rec f l =
+  let rec aux acc f l =
+    match l with
+    | [] -> acc
+    | h :: t -> aux (f h :: acc) f t
+  in
+  aux [] f l
+
+let rev_map_while f l =
+  let l = ref l in
+  let acc = ref [] in
+  let continue = ref true in
+  while !continue do
+    match !l with
+    | [] -> continue := false
+    | h :: t ->
+      l := t;
+      acc := f h :: !acc
+  done;
+  !acc
+
 open Micro_bench_types
 
 let interval_range =
-  [ Range (0, 100_000), Short;
-    Range (1_000_000, 10_000_000), Long;
+  [ Range (0, 10_000), Short;
+    Range (100_000, 1_000_000), Long;
     Range (10_000_000, 100_000_000), Longer ]
 
 let check_interval (n, l) =
@@ -80,12 +101,16 @@ let check_interval (n, l) =
   in
   aux (n, l)
 
-let mk_interval f =
-  Int ((fun i -> i, f 0 i),
-       (fun i -> i),
-       check_interval,
-       interval_range)
+let mk_interval f = fun i -> i, f 0 i
 
+let interval_group =
+  Int_group
+    (["direct", mk_interval interval_direct;
+      "tail_rec", mk_interval interval_tail_rec;
+      "tail_rec_with_closure", mk_interval interval_tail_rec_with_closure],
+     (fun i -> i),
+     check_interval,
+     interval_range)
 
 let rev_range = interval_range
 
@@ -94,11 +119,17 @@ let check_rev (orig,l) =
   then Ok
   else Error ""
 
-let mk_rev f =
-  Int ((fun l -> l, f l),
-       (fun i -> interval_tail_rec 0 i),
-       check_rev,
-       rev_range)
+let mk_rev f = (fun l -> l, f l)
+
+let rev_group =
+  Int_group
+    (["rec", mk_rev list_rev;
+      "rev_while", mk_rev list_rev_while],
+     (fun i -> interval_tail_rec 0 i),
+     check_rev,
+     rev_range)
+
+let mk_map_succ f = (fun l -> l, f succ l)
 
 let map_succ_range = interval_range
 
@@ -107,21 +138,37 @@ let check_map_succ (orig, l) =
   then Ok
   else Error ""
 
-let mk_map_succ f =
-  Int ((fun l -> l, f succ l),
+let map_succ_group =
+  Int_group
+    (["direct", mk_map_succ map_direct;
+      "closure", mk_map_succ map_direct_closure;
+      "tail_rec", mk_map_succ map_tail_rec],
        (fun i -> interval_tail_rec 0 i),
        check_map_succ,
        map_succ_range)
 
+let rev_map_succ_range = interval_range
+
+let check_rev_map_succ (orig, l) =
+  if List.rev_map (fun i -> i - 1) l = orig
+  then Ok
+  else Error ""
+
+let mk_rev_map_succ f = (fun l -> l, f succ l)
+
+let rev_map_succ_group =
+  Int_group
+    (["rev_map_tail_rec succ", mk_rev_map_succ rev_map_tail_rec;
+      "rev_map_while succ", mk_rev_map_succ rev_map_while],
+     (fun i -> interval_tail_rec 0 i),
+     check_rev_map_succ,
+     rev_map_succ_range)
+
 let functions =
-  [ "interval_direct", mk_interval interval_direct;
-    "interval_tail_rec", mk_interval interval_tail_rec;
-    "interval_tail_rec_with_closure", mk_interval interval_tail_rec_with_closure;
-    "rev", mk_rev list_rev;
-    "rev_while", mk_rev list_rev_while;
-    "map_direct succ", mk_map_succ map_direct;
-    "map_direct_closure succ", mk_map_succ map_direct_closure;
-    "map_tail_rec succ", mk_map_succ map_tail_rec;
+  [ "interval", interval_group;
+    "rev", rev_group;
+    "map succ", map_succ_group;
+    "rev_map succ", rev_map_succ_group;
   ]
 
 let () = add functions

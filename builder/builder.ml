@@ -158,11 +158,17 @@ let run_function_command context ~native rc b : (command * file) option =
 
 let run_benchmarks context rc l =
   filter_map (fun b ->
+    let selected = match rc.selected_sets with
+      | None -> true
+      | Some l -> List.mem b.bench_name l in
+    if selected
+    then
       run_function_command context ~native:true rc b
       |> may_map (fun c ->
-          match run_and_read c with
-          | None -> b, []
-          | Some r ->
-            b, Measurements.read_measurement ~contents:r))
+        match run_and_read c with
+        | None -> b, []
+        | Some r ->
+          b, Measurements.read_measurement ~contents:r)
+    else None)
     l
 

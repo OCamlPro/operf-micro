@@ -249,17 +249,32 @@ end
 module Measurement = struct
   type t = {
     name         : string;
+    group        : string option;
+    parameter    : int option;
     largest_run  : int;
     sample_count : int;
     samples      : Measurement_sample.t array
   }
 
-  let create ~name ~largest_run ~sample_count ~samples = {
-    name; largest_run; sample_count; samples;
+  let create ~name ~group ~parameter ~largest_run ~sample_count ~samples = {
+    name; group; parameter; largest_run; sample_count; samples;
   }
 
   let output oc t =
     output_string oc t.name;
+    output_char oc '\n';
+    (match t.group with
+     | None -> ()
+     | Some group ->
+       output_string oc "group: ";
+       output_string oc group;
+       output_char oc '\n');
+    (match t.parameter with
+     | None -> ()
+     | Some parameter ->
+       output_string oc "parameter: ";
+       output_string oc (string_of_int parameter);
+       output_char oc '\n');
     output_char oc '\n';
     for i = 0 to t.sample_count - 1 do
       Measurement_sample.output oc t.samples.(i);
@@ -384,25 +399,24 @@ module Tester = struct
       { Config.maximal_cost = max_cost;
         number_of_different_values = n;
         verbosity = verbosity;
-        selection = selection } = function
-    | name, Unit (f, test, cost) ->
-      if compare_cost cost max_cost <= 0 && in_selection name selection
-      then begin
-        if verbosity = `High
-        then Printf.printf "running test %s\n%!" name;
-        try
-          match test (f ()) with
-          | Ok -> ()
-          | Error e ->
-            errors := true;
-            Printf.eprintf "test %s failed with message %s\n%!"
-              name e
-        with exn ->
-          Printf.eprintf "test %s failed with exception %s\n%!"
-            name (Printexc.to_string exn)
-      end
+        selection = selection } item =
 
-    | name, Int (f, prepare, test, costs) ->
+    let run_unit name f test =
+      if verbosity = `High
+      then Printf.printf "running test %s\n%!" name;
+      try
+        match test (f ()) with
+        | Ok -> ()
+        | Error e ->
+          errors := true;
+          Printf.eprintf "test %s failed with message %s\n%!"
+            name e
+      with exn ->
+        Printf.eprintf "test %s failed with exception %s\n%!"
+          name (Printexc.to_string exn)
+    in
+
+    let run_int name f prepare test costs =
       let aux v =
         if verbosity = `High
         then Printf.printf "running test %s with argument %i\n%!" name v;
@@ -417,8 +431,33 @@ module Tester = struct
           Printf.eprintf "test %s with parameter %i failed with exception %s\n%!"
             name n (Printexc.to_string exn)
       in
+      List.iter aux (pick n max_cost costs)
+    in
+
+    match item with
+    | name, Unit (f, test, cost) ->
+      if compare_cost cost max_cost <= 0 && in_selection name selection
+      then run_unit name f test
+
+    | group_name, Unit_group (group, test, cost) ->
+      if compare_cost cost max_cost <= 0 && in_selection group_name selection
+      then
+        let aux (function_name, f) =
+          let name = group_name ^ "." ^ function_name in
+          run_unit name f test in
+        List.iter aux group
+
+    | name, Int (f, prepare, test, costs) ->
       if in_selection name selection
-      then List.iter aux (pick n max_cost costs)
+      then run_int name f prepare test costs
+
+    | group_name, Int_group (group, prepare, test, costs) ->
+      if in_selection group_name selection
+      then
+        let aux (function_name, f) =
+          let name = group_name ^ "." ^ function_name in
+          run_int name f prepare test costs in
+        List.iter aux group
 
   let measure_functions
       { Config.maximal_cost = max_cost;
@@ -429,15 +468,32 @@ module Tester = struct
       match bench with
       | Unit (f, test, cost) ->
         if compare_cost cost max_cost <= 0
-        then [name, fun () -> ignore (f ())]
+        then [name, None, None, fun () -> ignore (f ())]
+        else []
+      | Unit_group (group, test, cost) ->
+        if compare_cost cost max_cost <= 0
+        then
+          List.map (fun (function_name, f) ->
+            function_name, Some name, None, fun () -> ignore (f ()))
+            group
         else []
       | Int (f, prepare, test, costs) ->
         let args = pick n max_cost costs in
         List.map (fun arg ->
             let name = Printf.sprintf "%s: %i" name arg in
             let v = prepare arg in
-            name, fun () -> ignore (f v))
+            name, None, Some arg, fun () -> ignore (f v))
           args
+      | Int_group (group, prepare, test, costs) ->
+        let args = pick n max_cost costs in
+        List.map (fun arg ->
+          let v = prepare arg in
+          List.map (fun (function_name, f) ->
+            let function_name = Printf.sprintf "%s: %i" function_name arg in
+            function_name, Some name, Some arg, fun () -> ignore (f v))
+            group)
+          args
+        |> List.concat
     in
     let l = match selection with
       | None -> l
@@ -456,15 +512,26 @@ module Tester = struct
 
   let list output l =
     List.iter (function
-        | name, Unit(_,_,cost) ->
-          Printf.fprintf output "  %s: %s\n" name (string_of_cost cost)
-        | name, Int(_,_,_,costs) ->
-          Printf.fprintf output "  %s:\n" name;
-          List.iter (fun (range, cost) ->
-              Printf.fprintf output "    %s: %s\n"
-                (string_of_cost cost)
-                (string_of_range range))
-            costs)
+      | name, Unit(_,_,cost) ->
+        Printf.fprintf output "  %s: %s\n" name (string_of_cost cost)
+      | group_name, Unit_group(group,_,cost) ->
+        Printf.fprintf output "  %s: %s\n" group_name (string_of_cost cost);
+        List.iter (fun (name, _) -> Printf.fprintf output "  - %s\n" name) group
+      | name, Int(_,_,_,costs) ->
+        Printf.fprintf output "  %s:\n" name;
+        List.iter (fun (range, cost) ->
+          Printf.fprintf output "    %s: %s\n"
+            (string_of_cost cost)
+            (string_of_range range))
+          costs
+      | group_name, Int_group(group,_,_,costs) ->
+        Printf.fprintf output "  %s:\n" group_name;
+        List.iter (fun (range, cost) ->
+          Printf.fprintf output "    %s: %s\n"
+            (string_of_cost cost)
+            (string_of_range range))
+          costs;
+        List.iter (fun (name, _) -> Printf.fprintf output "  - %s\n" name) group)
       l
 
 end
@@ -474,7 +541,7 @@ let exceeded_allowed_time allowed_time_span t1 =
   Time.diff t2 t1 > allowed_time_span
 
 (* The main benchmarking function *)
-let measure config (name, f) =
+let measure config (name, group, parameter, f) =
   let module C = Config in
   let module M  = Measurement_sample in
 
@@ -572,6 +639,8 @@ let measure config (name, f) =
   let largest_run = !runs in
   let measurement = Measurement.create
                       ~name
+                      ~group
+                      ~parameter
                       ~largest_run
                       ~sample_count:total_samples
                       ~samples:results

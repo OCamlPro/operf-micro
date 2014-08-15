@@ -29,7 +29,8 @@ type cost =
 type run_config =
   { maximal_cost : cost option;
     time_quota : float option;
-    different_values : int option }
+    different_values : int option;
+    selected_sets : string list option }
 
 
 type error =

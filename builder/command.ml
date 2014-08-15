@@ -154,27 +154,6 @@ let run_and_read (c, out_file) =
     let () = Sys.remove out_file in
     Some s
 
-let split c s =
-  let aux pos =
-    let i = String.index_from s pos c in
-    i, String.sub s pos (i - pos)
-  in
-  let rec loop pos acc =
-    let r =
-      try Some (aux pos) with
-      | Not_found -> None
-    in
-    match r with
-    | None ->
-      let len = String.length s in
-      let last_line = String.sub s pos (len - pos) in
-      last_line :: acc
-    | Some (pos, line) -> loop (pos+1) ( line :: acc )
-  in
-  List.rev (loop 0 [])
-
-let lines s = split '\n' s
-
 let run_and_read_lines c =
   match run_and_read c with
   | None -> None

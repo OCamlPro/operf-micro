@@ -56,13 +56,20 @@ let run_subcommand () =
   let set_quota = Arg.Float (fun v -> time_quota := Some v) in
   let set_cost c = Arg.Unit (fun () -> maximal_cost := Some c) in
   let set_different_values i = different_values := Some i in
+  let selected_sets = ref [] in
   let run () =
     let config = Detect_config.load_operf_config_file () in
     let context = Detect_config.load_context config in
     let build_descr = load_build_descrs context in
+    let selected_sets =
+      match !selected_sets with
+      | [] -> None
+      | l -> Some l
+    in
     let rc = { maximal_cost = !maximal_cost;
                time_quota = !time_quota;
-               different_values = !different_values } in
+               different_values = !different_values;
+               selected_sets } in
     let m = run_benchmarks context rc build_descr in
     let output_dir =
       match !output_dir with
@@ -90,7 +97,7 @@ let run_subcommand () =
     " directory where .result files will be recorded";
     "-o", set_string output_dir, " same as --output";
   ],
-  (fun _s -> ()),
+  (fun s -> selected_sets := s :: !selected_sets),
   "",
   run
 
@@ -219,22 +226,30 @@ let results_subcommand () =
          (fun v ->
           if List.mem v.res_name selected
           then
-            match last_timestamped v with
-            | None -> ()
-            | Some res ->
+            (match last_timestamped v with
+             | None -> ()
+             | Some res ->
                let results = Measurements.load_results Measurements.Cycles res.sr_files in
                Format.printf "@[<v 2>%s %s:@ " v.res_name res.sr_timestamp;
                StringMap.iter
                  (fun bench_name res_map ->
                   Format.printf "@[<v 2>%s:@ " bench_name;
                   StringMap.iter
-                    (fun fun_name result ->
-                     Format.printf "%s: %f@ " fun_name result.Measurements.mean_value)
+                    (fun name -> function
+                       | Measurements.Simple result ->
+                         Format.printf "%s: %.2f@ "
+                           name result.Measurements.mean_value
+                       | Measurements.Group results ->
+                         Format.printf "@[<v 2>group %s@ " name;
+                         List.iter (fun (fun_name, result) ->
+                           Format.printf "%s: %.2f@ "
+                             fun_name result.Measurements.mean_value)
+                           results;
+                         Format.printf "@]@ ")
                     res_map;
-                  Format.pp_close_box Format.std_formatter ();
-                  Format.printf "@]")
+                  Format.printf "@]@ ")
                  results;
-               Format.printf "@]@.")
+               Format.printf "@]@ "))
          l;
        Format.printf "@."
   in
@@ -264,13 +279,17 @@ let print_compared_results ppf width name_width comp =
   let print ppf result_name map =
     Format.pp_print_string ppf (cut_pad name_width result_name);
     let print ppf _set_name map =
-      let print ppf _function_name value =
+      let print ppf value =
         (match value with
          | None -> Format.pp_print_string ppf (String.make width ' ')
          | Some ratio -> Format.fprintf ppf "%*.2f" width ratio);
         Format.pp_print_string ppf " "
       in
-      StringMap.iter (print ppf) map in
+      let print_group ppf _function_name = function
+        | Measurements.Simple value -> print ppf value
+        | Measurements.Group l -> List.iter (fun (_,value) -> print ppf value) l
+      in
+      StringMap.iter (print_group ppf) map in
     StringMap.iter (print ppf) map;
     Format.fprintf ppf "@."
   in

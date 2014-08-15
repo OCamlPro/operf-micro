@@ -1,4 +1,3 @@
-open Command
 open Detect_config
 open Files
 open Utils
@@ -20,7 +19,7 @@ type measurement_sample = {
   minor_collections : int;
 }
 
-type measurements = string * measurement_sample list
+type measurements = string * (string * string) list * measurement_sample list
 
 let measurement_dict
     {
@@ -57,11 +56,12 @@ let measurement_file context bench measurements =
     | None -> d
     | Some v -> (name, f v) :: d in
   let runs =
-    let aux (func, m) =
+    let aux (func, params, m) =
       let dict =
         []
         |> f "list" (List (List.map measurement_dict m))
         |> f "name" (String func)
+        |> f "properties" (Dict (List.map (fun (k, v) -> k, String v) params))
       in
       Dict dict
     in
@@ -75,9 +75,13 @@ let measurement_file context bench measurements =
   in
   Dict dict
 
+type 'a group =
+  | Simple of 'a
+  | Group of (string * 'a) list
+
 type runs = {
   name : string;
-  list : measurement_sample list;
+  list : (measurement_sample list) group;
 }
 
 type recorded_measurements = {
@@ -102,6 +106,7 @@ module Reader = struct
 
   type runs' = {
     name : string option;
+    group : string option;
     list : measurement_sample list option;
   }
 
@@ -163,17 +168,29 @@ module Reader = struct
   let add_runs_field r (s, v) : runs' =
     match s, v with
     | "name", String v -> { r with name = Some v }
+    | "properties", Dict l ->
+      List.fold_left (fun r field ->
+        match field with
+        | "group", String v -> { r with group = Some v }
+        | _ -> r)
+        r l
     | "list", List l ->
        { r with list = Some (List.map read_measurement_sample l) }
     | _ -> r
 
-  let read_runs v : runs =
-    let empty : runs' = { name = None; list = None } in
+  let read_add_runs (no_group, groups) v =
+    let empty : runs' = { name = None; group = None; list = None } in
     let r = match v with
       | Dict l -> List.fold_left add_runs_field empty l
       | _ -> failwith "parse error" in
     match r with
-    | { name = Some name; list = Some list } -> { name; list }
+    | { name = Some name; group; list = Some list } ->
+      begin match group with
+        | None -> { name; list = Simple list } :: no_group, groups
+        | Some group ->
+          let l = try StringMap.find group groups with Not_found -> [] in
+          no_group, StringMap.add group ((name, list) :: l) groups
+      end
     | _ -> failwith "parse error"
 
   let add_record_field r (s, v) : recorded_measurements' =
@@ -182,7 +199,12 @@ module Reader = struct
     | "name", String v -> { r with name = Some v }
     | "date", String v -> { r with date = Some v }
     | "runs", List l ->
-       { r with run_list = Some (List.map read_runs l) }
+      let no_groups, groups =
+        List.fold_left read_add_runs ([],StringMap.empty) l in
+      let groups = StringMap.fold
+          (fun group l acc -> { name = group; list = Group l } :: acc)
+          groups no_groups in
+      { r with run_list = Some groups }
     | _ -> r
 
   let missing_field s =
@@ -241,20 +263,35 @@ let words s =
   List.filter (function "" -> false | _ -> true)
     (split ' ' s)
 
+(* cut_field "field_name: value" = "field_name", "value" *)
+let cut_field s =
+  let i = String.index s ':' in
+  let len = String.length s in
+  let rec last_space i =
+    if i >= len
+    then i
+    else if s.[i] = ' '
+    then last_space (i+1)
+    else i
+  in
+  let j = last_space (i+1) in
+  String.sub s 0 i,
+  String.sub s j (String.length s - j)
+
 let read_measurement ~contents:text : measurements list =
   let error s =
     Printf.eprintf "malformed input line: %s\n%!" s;
     raise Exit
   in
-  let rec aux l curr_name curr acc =
+  let rec aux l curr_name curr_params curr acc : measurements list =
     match l with
     | [] ->
-      (curr_name, curr) :: acc
+      (curr_name, curr_params, curr) :: acc
     | "" :: t ->
-      aux_name t ((curr_name, curr) :: acc)
+      aux_name t ((curr_name, curr_params, curr) :: acc)
     | h :: t ->
       if h.[0] = '#'
-      then aux t curr_name curr acc
+      then aux t curr_name curr_params curr acc
       else
         try
           let ints = List.map int_of_string (words h) in
@@ -270,17 +307,33 @@ let read_measurement ~contents:text : measurements list =
                 promoted = i6;
                 major_collections = i7;
                 minor_collections = i8 } in
-            aux t curr_name (m::curr) acc
+            aux t curr_name curr_params (m::curr) acc
           | _ -> error h
         with _ -> error h
 
-  and aux_name l acc =
+  and aux_name l acc : measurements list =
     match l with
     | [] -> acc
     | "" :: t ->
       aux_name t acc
     | name :: t ->
-      aux t name [] acc
+      aux_params name [] t acc
+
+  and aux_params name params l acc : measurements list =
+    match l with
+    | [] ->
+      Printf.eprintf "Warning: unexpected end of file\n%!";
+      acc
+    | "" :: t ->
+      aux t name params [] acc
+    | param :: t ->
+      let params =
+        try
+          let param_name, param_value = cut_field param in
+          (param_name, param_value) :: params
+        with Not_found -> error param
+      in
+      aux_params name params t acc
   in
   aux_name (lines text) []
 
@@ -375,7 +428,14 @@ let analyse_measurement c ml =
 let analyse_measurements c (rm:recorded_measurements) =
   List.fold_left
     (fun map { name; list } ->
-     StringMap.add name (analyse_measurement c list) map)
+       let elt =
+         match list with
+         | Simple list ->
+           Simple (analyse_measurement c list)
+         | Group functions ->
+           Group (List.map (fun (name, list) -> name, analyse_measurement c list) functions)
+       in
+       StringMap.add name elt map)
     StringMap.empty rm.run_list
 
 let load_results c files =
@@ -400,9 +460,23 @@ let compare_measurements ?reference results =
   let merge _key reference value =
     match reference, value with
     | None, _ -> None
-    | Some _, None -> Some None
-    | Some reference, Some result ->
-      Some (Some (result.mean_value /. reference.mean_value)) in
+    | Some (Simple reference), Some (Simple result) ->
+      Some (Simple (Some (result.mean_value /. reference.mean_value)))
+    | Some (Group reference), Some (Group result) ->
+      let reference = stringmap_of_list reference in
+      let result = stringmap_of_list result in
+      let aux _key reference result =
+        match reference, result with
+        | None, _ -> None
+        | Some _, None -> Some None
+        | Some reference, Some result ->
+          Some (Some (result.mean_value /. reference.mean_value))
+      in
+      let map = StringMap.merge aux reference result in
+      Some (Group (StringMap.bindings map))
+    | Some (Simple _), _ -> Some (Simple None)
+    | Some (Group l), _ -> Some (Group (List.map (fun (name, _) -> name, None) l))
+  in
   let merge2 _key reference value =
     match reference, value with
     | None, _ -> None
