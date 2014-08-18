@@ -85,13 +85,18 @@ let rename n (t1,t2) =
 (************************ Completion ******************************)
 
 let deletion_message rule =
-  print_string "Rule ";print_int rule.number; print_string " deleted";
-  print_newline()
-
+  let b = Buffer.create 20 in
+  Buffer.add_string b "Rule ";
+  Buffer.add_string b (string_of_int rule.number);
+  Buffer.add_string b " deleted";
+  print_endline (Buffer.contents b)
 
 (* Generate failure message *)
 let non_orientable (m,n) =
-    pretty_term m; print_string " = "; pretty_term n; print_newline()
+    let b = Buffer.create 20 in
+    pretty_term b m; Buffer.add_string b " = ";
+    pretty_term b n;
+    print_endline (Buffer.contents b)
 
 
 let rec partition p = function
@@ -132,10 +137,10 @@ let kb_completion greater =
         and n' = mrewrite_all rules n
         and enter_rule(left,right) =
           let new_rule = mk_rule (j+1) left right in
-          pretty_rule new_rule;
+          (* pretty_rule new_rule; *)
           let left_reducible rule = reducible left rule.lhs in
           let (redl,irredl) = partition left_reducible rules in
-          List.iter deletion_message redl;
+          (* List.iter deletion_message redl; *)
           let right_reduce rule =
             mk_rule rule.number rule.lhs
                     (mrewrite_all (new_rule::rules) rule.rhs) in
@@ -176,10 +181,10 @@ let kb_completion greater =
 (* complete_rules is assumed locally confluent, and checked Noetherian with
   ordering greater, rules is any list of rules *)
 
-let kb_complete greater complete_rules rules =
+let kb_complete b greater complete_rules rules =
     let n = check_rules complete_rules
     and eqs = List.map (fun rule -> (rule.lhs, rule.rhs)) rules in
     let completed_rules =
       kb_completion greater n complete_rules [] (n,n) eqs in
-    print_string "Canonical set found :"; print_newline();
-    pretty_rules (List.rev completed_rules)
+    Buffer.add_string b "Canonical set found :\n";
+    pretty_rules b (List.rev completed_rules)

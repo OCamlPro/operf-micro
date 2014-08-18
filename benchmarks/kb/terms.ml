@@ -103,31 +103,32 @@ let rec unify term1 term2 =
 
 let infixes = ["+";"*"]
 
-let rec pretty_term = function
+let rec pretty_term b = function
     Var n ->
-      print_string "v"; print_int n
+      Buffer.add_char b 'v';
+      Buffer.add_string b (string_of_int n)
   | Term (oper,sons) ->
       if List.mem oper infixes then begin
         match sons with
             [s1;s2] ->
-              pretty_close s1; print_string oper; pretty_close s2
+              pretty_close b s1; Buffer.add_string b oper; pretty_close b s2
           | _ ->
               failwith "pretty_term : infix arity <> 2"
       end else begin
-        print_string oper;
+        Buffer.add_string b oper;
         match sons with
              []   -> ()
-          | t::lt -> print_string "(";
-                     pretty_term t;
-                     List.iter (fun t -> print_string ","; pretty_term t) lt;
-                     print_string ")"
+          | t::lt -> Buffer.add_char b '(';
+                     pretty_term b t;
+                     List.iter (fun t -> Buffer.add_char b ','; pretty_term b t) lt;
+                     Buffer.add_char b ')'
       end
 
-and pretty_close = function
+and pretty_close b = function
     Term(oper, _) as m ->
       if List.mem oper infixes then begin
-        print_string "("; pretty_term m; print_string ")"
+        Buffer.add_char b '('; pretty_term b m; Buffer.add_char b ')'
       end else
-        pretty_term m
+        pretty_term b m
   | m ->
-      pretty_term m
+      pretty_term b m

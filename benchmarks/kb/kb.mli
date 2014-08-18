@@ -26,4 +26,4 @@ val get_rule: int -> rule list -> rule
 val kb_completion:
     (term * term -> bool) -> int -> rule list -> (term * term) list
     -> int * int -> (term * term) list -> rule list
-val kb_complete: (term * term -> bool) -> rule list -> rule list -> unit
+val kb_complete: Buffer.t -> (term * term -> bool) -> rule list -> rule list -> unit

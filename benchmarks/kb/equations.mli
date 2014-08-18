@@ -20,8 +20,8 @@ type rule =
 
 val mk_rule: int -> term -> term -> rule
 val check_rules: rule list -> int
-val pretty_rule: rule -> unit
-val pretty_rules: rule list -> unit
+val pretty_rule: Buffer.t -> rule -> unit
+val pretty_rules: Buffer.t -> rule list -> unit
 val reduce: term -> term -> term -> term
 val reducible: term -> term -> bool
 val mreduce: rule list -> term -> term

@@ -75,12 +75,40 @@ let group_order = rpo group_precedence lex_ext
 let greater pair =
   match group_order pair with Greater -> true | _ -> false
 
+let complete greater complete_rules rules =
+    let n = check_rules complete_rules
+    and eqs = List.map (fun rule -> (rule.lhs, rule.rhs)) rules in
+    List.rev (kb_completion greater n complete_rules [] (n,n) eqs)
+
 open Micro_bench_types
+
+let check_string l =
+  let b = Buffer.create 10000 in
+  pretty_rules b l;
+  Buffer.contents b
+
+let check_geom_rules l =
+  let s = check_string l in
+  if s = Result.result
+  then Ok
+  else Error ("\n" ^ s)
 
 let functions =
   [ "kb geom_rules",
-    Unit ((fun () -> kb_complete greater [] geom_rules),
-          (fun () -> Ok),
+    Unit ((fun () -> complete greater [] geom_rules),
+          check_geom_rules,
           Long) ]
 
 let () = add functions
+
+let save_result () =
+  let s = check_string (complete greater [] geom_rules) in
+  let oc = open_out "result.ml" in
+  output_string oc "let result =\n\"";
+  output_string oc s;
+  output_string oc "\"";
+  close_out oc
+
+let () =
+  if Array.length Sys.argv > 1 && Sys.argv.(1) = "make-result"
+  then save_result ()

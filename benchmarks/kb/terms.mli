@@ -25,5 +25,5 @@ val compsubst: (int * term) list -> (int * term) list -> (int * term) list
 val occurs: int -> term -> bool
 val unify: term -> term -> (int * term) list
 val infixes: string list
-val pretty_term: term -> unit
-val pretty_close: term -> unit
+val pretty_term: Buffer.t -> term -> unit
+val pretty_close: Buffer.t -> term -> unit

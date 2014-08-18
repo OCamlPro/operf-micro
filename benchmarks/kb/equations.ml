@@ -44,13 +44,15 @@ let check_rules rules =
   !counter
 
 
-let pretty_rule rule =
-  print_int rule.number; print_string " : ";
-  pretty_term rule.lhs; print_string " = "; pretty_term rule.rhs;
-  print_newline()
+let pretty_rule b rule =
+  Buffer.add_string b (string_of_int rule.number);
+  Buffer.add_string b " : ";
+  pretty_term b rule.lhs;
+  Buffer.add_string b " = ";
+  pretty_term b rule.rhs;
+  Buffer.add_char b '\n'
 
-
-let pretty_rules rules = List.iter pretty_rule rules
+let pretty_rules b rules = List.iter (pretty_rule b) rules
 
 (****************** Rewriting **************************)
 
