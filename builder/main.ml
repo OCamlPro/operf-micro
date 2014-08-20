@@ -13,18 +13,18 @@ exception Error of error
 
 let set_string r = Arg.String (fun v -> r := Some v)
 
+let do_build () =
+  let config = Detect_config.load_operf_config_file () in
+  let context = Detect_config.load_context config in
+  let build_descr = load_build_descrs context in
+  Detect_config.prepare_build context;
+  build_benchmarks context build_descr
+
 let build_subcommand () =
-  let build () =
-    let config = Detect_config.load_operf_config_file () in
-    let context = Detect_config.load_context config in
-    let build_descr = load_build_descrs context in
-    Detect_config.prepare_build context;
-    build_benchmarks context build_descr
-  in
   [],
   (fun _s -> ()),
   "",
-  build
+  do_build
 
 let list_subcommand () =
   let list () =
@@ -48,102 +48,129 @@ let list_subcommand () =
   "",
   list
 
+module Arg_opt = struct
+  let time_quota = ref None
+  let maximal_cost = ref None
+  let different_values = ref None
+  let set_quota = Arg.Float (fun v -> time_quota := Some v)
+  let set_cost c = Arg.Unit (fun () -> maximal_cost := Some c)
+  let set_different_values i = different_values := Some i
+
+  let run_config_arg =
+    [ "--time-quota", set_quota, "t time_quota";
+      "-q", set_quota, " alias of --time-quota";
+      "--different-values", Arg.Int set_different_values, "n number of different values on which functions are evaluated";
+      "-n", Arg.Int set_different_values, " alias of --different-values";
+      "--long", set_cost Long, " allow running long test";
+      "--longer", set_cost Longer, " allow running longer test" ]
+
+
+  let output_dir = ref None
+
+  let output_dir_arg =
+    [ "--output", set_string output_dir,
+      " directory where .result files will be recorded";
+      "-o", set_string output_dir, " same as --output" ]
+
+  let make_run_config selected_sets =
+    { maximal_cost = !maximal_cost;
+      time_quota = !time_quota;
+      different_values = !different_values;
+      selected_sets }
+
+  let bin_dir = ref None
+  let bin_dir_arg = ["--bin-dir", set_string bin_dir, "p path to ocaml binary directory"]
+
+  let selected_sets = ref []
+  let add_selected_set = Arg.String (fun s -> selected_sets := s :: !selected_sets)
+  let selected_sets_arg = ["--selected", add_selected_set, "s run benchmark s. All are run if none is specified";
+                           "-s" , add_selected_set, " alias of --selected"]
+
+  let get_selected_sets () =
+    match !selected_sets with
+    | [] -> None
+    | l -> Some l
+
+end
+
+let do_run output_dir rc =
+  let config = Detect_config.load_operf_config_file () in
+  let context = Detect_config.load_context config in
+  let build_descr = load_build_descrs context in
+  let m = run_benchmarks context rc build_descr in
+  let output_dir =
+    match output_dir with
+    | Some d -> d
+    | None ->
+      match Detect_config.save_directory context with
+      | Err s -> raise (Error (Problem_creating_save_directory s))
+      | Ok d -> d
+  in
+  let aux (bench, measurements) =
+    let file = Measurements.measurement_file context bench measurements in
+    let filename = Filename.concat output_dir (bench.bench_name ^ ".result") in
+    Command.write_file filename (fun ppf -> Files.print ppf file)
+  in
+  List.iter aux m
+
 let run_subcommand () =
-  let time_quota = ref None in
-  let maximal_cost = ref None in
-  let output_dir = ref None in
-  let different_values = ref None in
-  let set_quota = Arg.Float (fun v -> time_quota := Some v) in
-  let set_cost c = Arg.Unit (fun () -> maximal_cost := Some c) in
-  let set_different_values i = different_values := Some i in
   let selected_sets = ref [] in
   let run () =
-    let config = Detect_config.load_operf_config_file () in
-    let context = Detect_config.load_context config in
-    let build_descr = load_build_descrs context in
     let selected_sets =
       match !selected_sets with
       | [] -> None
       | l -> Some l
     in
-    let rc = { maximal_cost = !maximal_cost;
-               time_quota = !time_quota;
-               different_values = !different_values;
-               selected_sets } in
-    let m = run_benchmarks context rc build_descr in
-    let output_dir =
-      match !output_dir with
-      | Some d -> d
-      | None ->
-        match Detect_config.save_directory context with
-        | Err s -> raise (Error (Problem_creating_save_directory s))
-        | Ok d -> d
-    in
-    let aux (bench, measurements) =
-      let file = Measurements.measurement_file context bench measurements in
-      let filename = Filename.concat output_dir (bench.bench_name ^ ".result") in
-      Command.write_file filename (fun ppf -> Files.print ppf file)
-    in
-    List.iter aux m
-    (* List.iter (fun (_, m) -> Measurements.output_measurements stdout m) m; *)
+    do_run !Arg_opt.output_dir (Arg_opt.make_run_config selected_sets)
   in
-  [ "--time-quota", set_quota, "t time_quota";
-    "-q", set_quota, " alias of --time-quota";
-    "--different-values", Arg.Int set_different_values, " number of different values on which functions are evaluated";
-    "-n", Arg.Int set_different_values, " alias of --different-values";
-    "--long", set_cost Long, " allow running long test";
-    "--longer", set_cost Longer, " allow running longer test";
-    "--output", set_string output_dir,
-    " directory where .result files will be recorded";
-    "-o", set_string output_dir, " same as --output";
-  ],
+  Arg_opt.run_config_arg @ Arg_opt.output_dir_arg,
   (fun s -> selected_sets := s :: !selected_sets),
   "",
   run
 
+let do_init name bin_dir =
+  let init_dir =
+    match bin_dir with
+    | None ->
+      Detect_config.initialize_in_compiler_dir name
+    | Some dir ->
+      Detect_config.initialize_with_bin_dir name dir
+  in
+  Format.printf "initialised in directory %s@." init_dir
+
 let init_subcommand () =
   let name = ref None in
-  let bin_dir = ref None in
-  let init () =
-    let name = get_opt !name
-        (fun () -> raise (Error (Mandatory_option "name")))
-    in
-    let init_dir =
-      match !bin_dir with
-      | None ->
-        Detect_config.initialize_in_compiler_dir name
-      | Some dir ->
-        Detect_config.initialize_with_bin_dir name dir
-    in
-    Format.printf "initialised in directory %s@." init_dir
-  in
-  ["--bin-dir", set_string bin_dir, " path to ocaml binary directory"],
+  Arg_opt.bin_dir_arg,
   (fun s ->
      match !name with
      | None -> name := Some s
      | Some _ -> raise (Error (Unexpected s))),
   "[<args>] <name>\n\
    initialise the .operf directory.\n",
-  init
+  (fun () ->
+     let name = get_opt !name
+         (fun () -> raise (Error (Mandatory_option "name")))
+     in
+     do_init name !Arg_opt.bin_dir)
+
+let do_clean () =
+  match Detect_config.find_operf_directory () with
+  | None ->
+    Format.printf "not found@."
+  | Some operf_root_dir ->
+    let operf_dir = Filename.concat operf_root_dir ".operf" in
+    let sdir = Filename.concat operf_dir "micro" in
+    Command.remove sdir;
+    try
+      Unix.rmdir operf_dir
+    with _ -> ()
 
 let clean_subcommand () =
-  let clean () =
-    match Detect_config.find_operf_directory () with
-    | None ->
-       Format.printf "not found@."
-    | Some operf_root_dir ->
-       let operf_dir = Filename.concat operf_root_dir ".operf" in
-       let sdir = Filename.concat operf_dir "micro" in
-       Command.remove sdir;
-       try
-         Unix.rmdir operf_dir
-       with _ -> ()
-  in
   [],
   (fun _s -> ()),
   "\n\
    clean the .operf subdirectory",
-  clean
+  do_clean
 
 type timestamped_result =
     { sr_timestamp: Detect_config.timestamp;
@@ -213,51 +240,59 @@ let load_result_list () =
      let bench_named_dirs = Command.subdirectories home_dir in
      List.map res bench_named_dirs
 
+let do_results selected_names selected_sets =
+  let is_selected_set s =
+    match selected_sets with
+    | None -> true
+    | Some l -> List.mem s l
+  in
+  match selected_names with
+  | [] ->
+    let l = load_result_list () in
+    List.iter (fun v -> Format.printf "%a@." print_result_files v) l
+  | selected ->
+    let l = load_result_list () in
+    List.iter
+      (fun v ->
+         if List.mem v.res_name selected
+         then
+           (match last_timestamped v with
+            | None -> ()
+            | Some res ->
+              let results = Measurements.load_results Measurements.Cycles res.sr_files in
+              Format.printf "@[<v 2>%s %s:@ " v.res_name res.sr_timestamp;
+              StringMap.iter
+                (fun bench_name res_map ->
+                   if is_selected_set bench_name
+                   then begin
+                     Format.printf "@[<v 2>%s:@ " bench_name;
+                     StringMap.iter
+                       (fun name -> function
+                          | Measurements.Simple result ->
+                            Format.printf "%s: %.2f@ "
+                              name result.Measurements.mean_value
+                          | Measurements.Group results ->
+                            Format.printf "@[<v 2>group %s@ " name;
+                            List.iter (fun (fun_name, result) ->
+                              Format.printf "%s: %.2f@ "
+                                fun_name result.Measurements.mean_value)
+                              results;
+                            Format.printf "@]@ ")
+                       res_map;
+                     Format.printf "@]@ "
+                   end)
+                results;
+              Format.printf "@]@ "))
+      l;
+    Format.printf "@."
+
 let results_subcommand () =
   let l = ref [] in
-  let results () =
-    match !l with
-    | [] ->
-       let l = load_result_list () in
-       List.iter (fun v -> Format.printf "%a@." print_result_files v) l
-    | selected ->
-       let l = load_result_list () in
-       List.iter
-         (fun v ->
-          if List.mem v.res_name selected
-          then
-            (match last_timestamped v with
-             | None -> ()
-             | Some res ->
-               let results = Measurements.load_results Measurements.Cycles res.sr_files in
-               Format.printf "@[<v 2>%s %s:@ " v.res_name res.sr_timestamp;
-               StringMap.iter
-                 (fun bench_name res_map ->
-                  Format.printf "@[<v 2>%s:@ " bench_name;
-                  StringMap.iter
-                    (fun name -> function
-                       | Measurements.Simple result ->
-                         Format.printf "%s: %.2f@ "
-                           name result.Measurements.mean_value
-                       | Measurements.Group results ->
-                         Format.printf "@[<v 2>group %s@ " name;
-                         List.iter (fun (fun_name, result) ->
-                           Format.printf "%s: %.2f@ "
-                             fun_name result.Measurements.mean_value)
-                           results;
-                         Format.printf "@]@ ")
-                    res_map;
-                  Format.printf "@]@ ")
-                 results;
-               Format.printf "@]@ "))
-         l;
-       Format.printf "@."
-  in
-  [],
+  Arg_opt.selected_sets_arg,
   (fun s -> l := s :: !l),
   "[<names>]\n\
    if no name provided, list recorded results, otherwise print last results",
-  results
+  (fun () -> do_results !l (Arg_opt.get_selected_sets ()))
 
 let load_all_results () =
   let aux map v =
@@ -319,6 +354,30 @@ let compare_subcommand () =
    do things...",
   compare
 
+let doall_subcommand () =
+  let do_all name bin_dir output_dir selected_sets rc =
+    do_clean ();
+    do_init name bin_dir;
+    do_build ();
+    do_run output_dir rc;
+    do_results [name] selected_sets
+  in
+  let args = ref [] in
+  Arg_opt.bin_dir_arg @
+  Arg_opt.run_config_arg @
+  Arg_opt.output_dir_arg @
+  Arg_opt.selected_sets_arg,
+  (fun s -> args := s :: !args),
+  "[<args>] <name>\n\
+   clean, initialise the .operf directory.\n",
+  (fun () ->
+     match !args with
+     | [name] ->
+       let selected_set = Arg_opt.get_selected_sets () in
+       let rc = Arg_opt.make_run_config selected_set in
+       do_all name !Arg_opt.bin_dir !Arg_opt.output_dir selected_set rc
+     | _ -> failwith "wrong argument number")
+
 let subcommands =
   [ "init", init_subcommand;
     "build", build_subcommand;
@@ -326,7 +385,8 @@ let subcommands =
     "run", run_subcommand;
     "clean", clean_subcommand;
     "results", results_subcommand;
-    "compare", compare_subcommand ]
+    "compare", compare_subcommand;
+    "doall", doall_subcommand ]
 
 let error fmt =
   Format.kfprintf (fun _ppf -> exit 1) Format.err_formatter fmt
@@ -398,6 +458,7 @@ let () =
         Arg.parse_argv ~current:(ref 1) Sys.argv (Arg.align spec) annon_arg usage;
         run ()
       with
+      | Arg.Bad s
       | Arg.Help s ->
         print_endline s;
       | e ->
