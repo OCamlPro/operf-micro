@@ -61,7 +61,7 @@ end = struct
     let to_float v = v
     let to_ns v = v *. Constant.nanoseconds_per_second
     let to_ms v = v *. Constant.milliseconds_per_second
-    let to_string v = Printf.sprintf "%fs" v
+    let to_string v = string_of_float v ^ "s"
   end
 end
 
@@ -426,10 +426,10 @@ module Tester = struct
           | Error e ->
             errors := true;
             Printf.eprintf "test %s with parameter %i failed with message %s\n%!"
-              name n e
+              name v e
         with exn ->
           Printf.eprintf "test %s with parameter %i failed with exception %s\n%!"
-            name n (Printexc.to_string exn)
+            name v (Printexc.to_string exn)
       in
       List.iter aux (pick n max_cost costs)
     in
