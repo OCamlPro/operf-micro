@@ -12,6 +12,22 @@ let compare_cost c1 c2 =
   | Longer, Long -> 1
   | Longer, Longer -> 0
 
+let rec print_list = function
+  | [] -> ()
+  | [s] -> print_endline s
+  | s :: t ->
+    print_string s;
+    print_char ' ';
+    print_list t
+
+let rec prerr_list = function
+  | [] -> ()
+  | [s] -> prerr_endline s
+  | s :: t ->
+    prerr_string s;
+    prerr_char ' ';
+    prerr_list t
+
 module StringSet = struct
   include Set.Make(String)
   let of_list l = List.fold_right add l empty
@@ -25,8 +41,8 @@ module Float = struct
       int_of_float t
     else
       invalid_arg
-        (Printf.sprintf
-           "Float.iround_towards_zero_exn: argument (%f) is out of range or NaN" t)
+        ("Float.iround_towards_zero_exn: argument ("
+         ^string_of_float t^") is out of range or NaN")
 end
 
 module Time : sig
@@ -367,29 +383,29 @@ module Tester = struct
 
   let errors = ref false
 
-  let report name = function
-    | Ok -> ()
-    | Error e ->
-      errors := true;
-      Printf.eprintf "test %s failed with message %s\n%!"
-        name e
+  (* let report name = function *)
+  (*   | Ok -> () *)
+  (*   | Error e -> *)
+  (*     errors := true; *)
+  (*     Printf.eprintf "test %s failed with message %s\n%!" *)
+  (*       name e *)
 
-  let report_exception name exn =
-    errors := true;
-    Printf.eprintf "test %s failed with exception %s\n%!"
-      name (Printexc.to_string exn)
+  (* let report_exception name exn = *)
+  (*   errors := true; *)
+  (*   Printf.eprintf "test %s failed with exception %s\n%!" *)
+  (*     name (Printexc.to_string exn) *)
 
-  let report_n name n = function
-    | Ok -> ()
-    | Error e ->
-      errors := true;
-      Printf.eprintf "test %s with parameter %i failed with message %s\n%!"
-        name n e
+  (* let report_n name n = function *)
+  (*   | Ok -> () *)
+  (*   | Error e -> *)
+  (*     errors := true; *)
+  (*     Printf.eprintf "test %s with parameter %i failed with message %s\n%!" *)
+  (*       name n e *)
 
-  let report_exception_n name n exn =
-    errors := true;
-    Printf.eprintf "test %s with parameter %i failed with exception %s\n%!"
-      name n (Printexc.to_string exn)
+  (* let report_exception_n name n exn = *)
+  (*   errors := true; *)
+  (*   Printf.eprintf "test %s with parameter %i failed with exception %s\n%!" *)
+  (*     name n (Printexc.to_string exn) *)
 
   let in_selection name = function
     | None -> true
@@ -403,33 +419,31 @@ module Tester = struct
 
     let run_unit name f test =
       if verbosity = `High
-      then Printf.printf "running test %s\n%!" name;
+      then print_list ["running test"; name];
       try
         match test (f ()) with
         | Ok -> ()
         | Error e ->
           errors := true;
-          Printf.eprintf "test %s failed with message %s\n%!"
-            name e
+          prerr_list ["test"; name; "failed with message"; e]
       with exn ->
-        Printf.eprintf "test %s failed with exception %s\n%!"
-          name (Printexc.to_string exn)
+        prerr_list ["test"; name; "failed with exception"; (Printexc.to_string exn)]
     in
 
     let run_int name f prepare test costs =
       let aux v =
         if verbosity = `High
-        then Printf.printf "running test %s with argument %i\n%!" name v;
+        then print_list ["running test"; name; "with argument"; string_of_int v];
         try
           match test (f (prepare v)) with
           | Ok -> ()
           | Error e ->
             errors := true;
-            Printf.eprintf "test %s with parameter %i failed with message %s\n%!"
-              name v e
+            prerr_list ["test"; name; "with parameter"; string_of_int v;
+                        "failed with message"; e]
         with exn ->
-          Printf.eprintf "test %s with parameter %i failed with exception %s\n%!"
-            name v (Printexc.to_string exn)
+          prerr_list ["test"; name; "with parameter"; string_of_int v;
+                      "failed with exception"; (Printexc.to_string exn)]
       in
       List.iter aux (pick n max_cost costs)
     in
@@ -480,16 +494,14 @@ module Tester = struct
       | Int (f, prepare, test, costs) ->
         let args = pick n max_cost costs in
         List.map (fun arg ->
-            let name = Printf.sprintf "%s: %i" name arg in
-            let v = prepare arg in
-            name, None, Some arg, fun () -> ignore (f v))
+          let v = prepare arg in
+          name, None, Some arg, fun () -> ignore (f v))
           args
       | Int_group (group, prepare, test, costs) ->
         let args = pick n max_cost costs in
         List.map (fun arg ->
           let v = prepare arg in
           List.map (fun (function_name, f) ->
-            let function_name = Printf.sprintf "%s: %i" function_name arg in
             function_name, Some name, Some arg, fun () -> ignore (f v))
             group)
           args
@@ -507,7 +519,7 @@ module Tester = struct
 
   let string_of_range = function
     | Any -> "any"
-    | Range(x, y) -> Printf.sprintf "[%i ... %i]" x y
+    | Range(x, y) -> "[" ^ string_of_int x ^ " ... " ^ string_of_int x ^ "]"
     | List l -> "[" ^ (String.concat "; " (List.map string_of_int l)) ^ "]"
 
   let list output l =
