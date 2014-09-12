@@ -1,0 +1,2 @@
+bin: [
+ "builder/builder.opt" {"operf-micro"} ]
