@@ -16,7 +16,9 @@ exception Error of error
 type config =
   { name : string;
     ocaml_bin_dir : directory;
-    operf_root_dir : directory; }
+    operf_root_dir : directory;
+    include_path: directory option;
+  }
 
 type executable =
   | Bytecode
@@ -34,7 +36,9 @@ type context =
     ocamlc_path : program option;
     ocamlopt_path : program option;
     operf_files_path : directory;
-    operf_files_build_path : directory }
+    operf_files_build_path : directory;
+    include_path: directory option;
+  }
 
 val load_config_file : file -> Files.file
 
