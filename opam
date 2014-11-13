@@ -7,7 +7,6 @@ homepage: "http://github.com/OCamlPro/operf-micro"
 bug-reports: "http://github.com/OCamlPro/operf-micro/issues"
 license: "GPLv2"
 build: [
-  [make]
+  [make "PREFIX=%{prefix}%" "install"]
 ]
-depends: "ocamlfind" {build}
 dev-repo: "git://github.com/OCamlPro/operf-micro"
