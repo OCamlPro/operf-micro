@@ -104,7 +104,7 @@ let find_ocaml_root_directory ?(path=run_directory) () =
   find_ancessor is_ocaml_building_directory path
 
 let make_directory dir =
-  try Unix.mkdir dir 0o777
+  try Unix.mkdir dir 0o755
   with Unix.Unix_error (Unix.EEXIST, _, _) -> ()
 
 let home_directory () =
