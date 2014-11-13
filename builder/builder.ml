@@ -61,7 +61,7 @@ let ocamlc_command c b =
      (operf_built_files c [ "time_stamp_counter.cmo"; "micro_bench_run.cmo" ]))
     None
 
-let build_operf_file_command c native in_file =
+let build_operf_file_command (c : Detect_config.context) native in_file =
   let comp_command =
     if native
     then Detect_config.ocamlopt_command c
@@ -73,13 +73,17 @@ let build_operf_file_command c native in_file =
     let src = Filename.concat c.operf_files_path (source_filename in_file) in
     let dst = dest_filename ~native in_file in
     let dest_c_file = Filename.concat c.operf_files_build_path (f ^ ".c") in
+    let include_paths = match c.include_path with
+      | Some dir -> [A "-ccopt"; A ("-I" ^ dir)]
+      | None -> [] in
     Command.copy_file src dest_c_file;
     comp_command
-      [ A "-c";
-        A "-I"; ID c.operf_files_build_path;
-        A "-o"; OF (Filename.concat c.operf_files_build_path dst);
-        IF dest_c_file ]
+      ([ A "-c";
+         A "-I"; ID c.operf_files_build_path;
+         A "-o"; OF (Filename.concat c.operf_files_build_path dst);
+         IF dest_c_file ] @ include_paths)
       (Some c.operf_files_build_path)
+
   | _ ->
     let src = source_filename in_file in
     let dst = dest_filename ~native in_file in

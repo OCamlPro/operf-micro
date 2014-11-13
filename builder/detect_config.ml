@@ -4,7 +4,9 @@ open Command
 type config =
   { name : string;
     ocaml_bin_dir : directory;
-    operf_root_dir : directory; }
+    operf_root_dir : directory;
+    include_path: directory option;
+  }
 
 type executable =
   | Bytecode
@@ -22,7 +24,9 @@ type context =
     ocamlc_path : program option;
     ocamlopt_path : program option;
     operf_files_path : directory;
-    operf_files_build_path : directory }
+    operf_files_build_path : directory;
+    include_path: directory option;
+  }
 
 type error =
   | Parse_error of Loc.t
@@ -78,14 +82,14 @@ let load_config_file (file_name:file) =
     raise (Error (Parse_error loc))
   | e -> raise e
 
-let rec find_ancessor f path =
+let rec find_ancestor f path =
   if f path
   then Some path
   else
     let parent = Filename.dirname path in
     if parent = path
     then None (* root directory *)
-    else find_ancessor f parent
+    else find_ancestor f parent
 
 let is_ocaml_building_directory path =
   let check_subdir d =
@@ -101,10 +105,10 @@ let is_ocaml_building_directory path =
   check_file "Makefile"
 
 let find_ocaml_root_directory ?(path=run_directory) () =
-  find_ancessor is_ocaml_building_directory path
+  find_ancestor is_ocaml_building_directory path
 
 let make_directory dir =
-  try Unix.mkdir dir 0o777
+  try Unix.mkdir dir 0o755
   with Unix.Unix_error (Unix.EEXIST, _, _) -> ()
 
 let home_directory () =
@@ -153,14 +157,19 @@ let contains_operf_root_directory path =
   not (Sys.is_directory (config_file_name path))
 
 let find_operf_directory ?(path=run_directory) () =
-  find_ancessor contains_operf_root_directory path
+  find_ancestor contains_operf_root_directory path
 
 type config_file' =
   { name' : string option;
-    ocaml_bin_dir' : directory option }
+    ocaml_bin_dir' : directory option;
+    include_path': directory option;
+  }
 
 let empty_config_file' =
-  { name' = None; ocaml_bin_dir' = None }
+  { name' = None;
+    ocaml_bin_dir' = None;
+    include_path' = None;
+  }
 
 
 let micro_directory config =
@@ -189,19 +198,25 @@ let load_timestamp config =
   read_file (timestamp_file config)
 
 let check_config_file dir filename = function
-  | { name' = Some name; ocaml_bin_dir' = Some ocaml_bin_dir } ->
+  | { name' = Some name; ocaml_bin_dir' = Some ocaml_bin_dir; include_path' } ->
     { name;
       ocaml_bin_dir;
-      operf_root_dir = operf_subdir dir; }
+      operf_root_dir = operf_subdir dir;
+      include_path = include_path';
+    }
   | { name' = None; _ } ->
     raise (Error (Missing_config_field (filename, "name")))
   | { ocaml_bin_dir' = None; _ } ->
     raise (Error (Missing_config_field (filename, "ocaml_bin_dir")))
 
-let config_to_file { operf_root_dir = _; ocaml_bin_dir; name } =
+let config_to_file { operf_root_dir = _; ocaml_bin_dir; name; include_path; } =
   let dict = [] in
   let dict = ("ocaml_bin_dir", Files.String ocaml_bin_dir) :: dict in
   let dict = ("name", Files.String name) :: dict in
+  let dict = match include_path with
+    | Some s -> ("include_path", Files.String s) :: dict
+    | None -> dict
+  in
   Files.Dict dict
 
 let string = function
@@ -217,10 +232,14 @@ let parse_operf_config_file dir filename v =
     match e.name' with
     | None -> { e with name' = Some (string v) }
     | Some _ -> raise (Error (Duplicate_config_field (filename, "name"))) in
-
+  let include_path v e =
+    match e.include_path' with
+    | None -> { e with include_path' = Some (string v) }
+    | Some _ -> raise (Error (Duplicate_config_field (filename, "include_path"))) in
   let fields e = function
     | "name", v -> config_name v e
     | "ocaml_bin_dir", v -> ocaml_bin_dir v e
+    | "include_path", v -> include_path v e
     | s, _ -> failwith ("Unknown field: " ^ s)
   in
   let r =
@@ -267,7 +286,7 @@ let is_data_directory path =
     operf_source_files
 
 let data_directory =
-  match find_ancessor is_data_directory executable_directory with
+  match find_ancestor is_data_directory executable_directory with
   | None -> Filename.concat share_directory Static_config.name
   | Some s -> s
 
@@ -291,7 +310,9 @@ let initialize_in_compiler_dir ?path name =
   let config =
     { name = name;
       ocaml_bin_dir = root_dir;
-      operf_root_dir = operf_subdir root_dir } in
+      operf_root_dir = operf_subdir root_dir;
+      include_path = Some (Filename.concat root_dir "byterun");
+    } in
   write_initialise root_dir config;
   root_dir
 
@@ -307,7 +328,9 @@ let initialize_with_bin_dir ?(path=run_directory) name ocaml_bin_dir =
   let config =
     { name = name;
       ocaml_bin_dir;
-      operf_root_dir = operf_subdir root_dir } in
+      operf_root_dir = operf_subdir root_dir;
+      include_path = None;
+    } in
   write_initialise root_dir config;
   root_dir
 
@@ -386,6 +409,7 @@ let load_context config =
       ocamlopt_path;
       operf_files_path = micro_directory config;
       operf_files_build_path = build_directory config;
+      include_path = config.include_path;
       timestamp = load_timestamp config }
 
 let prepare_build context =
