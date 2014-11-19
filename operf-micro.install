@@ -1,2 +1,10 @@
 bin: [
  "builder/builder.opt" {"operf-micro"} ]
+
+share: [
+  "cycles.c"
+  "micro_bench_run.ml"
+  "micro_bench_types.ml"
+  "micro_bench_types.mli"
+  "time_stamp_counter.ml"
+]
