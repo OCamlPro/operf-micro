@@ -1,0 +1,9 @@
+PKG := operf-micro
+PREFIX := %{prefix}%
+SHARE := $(PREFIX)/share/
+BEST := opt
+
+EXEEXT :=
+OBJEXT := .o
+LIBEXT := .a
+DLLEXT := .so
