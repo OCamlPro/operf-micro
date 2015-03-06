@@ -1,4 +1,3 @@
-
 include Makefile.conf
 
 FILES= \
@@ -9,14 +8,17 @@ FILES= \
 all:
 	$(MAKE) -C builder all
 
-install: install-builder install-data
+install_benchs:
+	cp -R benchmarks $(SHARE)/$(PKG)
 
-install-builder:
-	$(MAKE) -C builder install
+install: all install_benchs
+	opam-installer --prefix=$(PREFIX) $(PKG).install
 
-install-data:
-	mkdir -p $(DATADIR)
-	cp -a $(FILES) $(DATADIR)
+uninstall_benchs:
+	rm -r $(SHARE)/$(PKG)/benchmarks
+
+uninstall: uninstall_benchs
+	opam-installer --prefix=$(PREFIX) -u $(PKG).install
 
 clean:
 	$(MAKE) -C builder clean

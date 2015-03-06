@@ -79,7 +79,7 @@ let check_command_out (_prog, args, _exec_dir) =
 
 let input_all =
   let len = 1024 in
-  let buf = String.create len in
+  let buf = Bytes.create len in
   let rec aux ic b =
     let n = input ic buf 0 1024 in
     Buffer.add_substring b buf 0 n;
@@ -161,11 +161,11 @@ let run_and_read_lines c =
 
 let copy_file =
   let buffer_size = 8192 in
-  let buffer = String.create buffer_size in
+  let buffer = Bytes.create buffer_size in
 
   fun input_name output_name ->
     let fd_in = Unix.openfile input_name [Unix.O_RDONLY] 0 in
-    let fd_out = Unix.openfile output_name [Unix.O_WRONLY; Unix.O_CREAT; Unix.O_TRUNC] 0o666 in
+    let fd_out = Unix.openfile output_name [Unix.O_WRONLY; Unix.O_CREAT; Unix.O_TRUNC] 0o644 in
     let rec loop () =
       let read = Unix.read fd_in buffer 0 buffer_size in
       if read <> 0

@@ -376,7 +376,7 @@ let doall_subcommand () =
        let selected_set = Arg_opt.get_selected_sets () in
        let rc = Arg_opt.make_run_config selected_set in
        do_all name !Arg_opt.bin_dir !Arg_opt.output_dir selected_set rc
-     | _ -> failwith "wrong argument number")
+     | _ -> failwith "wrong number of arguments, expected: <name>")
 
 let subcommands =
   [ "init", init_subcommand;
@@ -440,7 +440,7 @@ let print_errors ppf = function
 let () =
   if Array.length Sys.argv < 2
   then
-    error "usage: operf <command> [<args>]@.commands:@.%a"
+    error "Usage: operf <command> [<args>]@.commands:@.%a"
       (fun ppf -> List.iter (fun (name, _) -> Format.fprintf ppf "    %s@." name))
       subcommands
   else
@@ -453,8 +453,9 @@ let () =
     | Some f ->
       try
         let (spec, annon_arg, usage, run) = f () in
-        let usage = "usage: " ^ (Filename.basename Sys.executable_name) ^
-                    " " ^ subcommand_name ^ " " ^ usage in
+        let usage = "Usage: " ^
+                    (Filename.basename Sys.executable_name) ^ " " ^
+                    subcommand_name ^ " " ^ usage in
         Arg.parse_argv ~current:(ref 1) Sys.argv (Arg.align spec) annon_arg usage;
         run ()
       with

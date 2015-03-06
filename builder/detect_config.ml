@@ -78,14 +78,14 @@ let load_config_file (file_name:file) =
     raise (Error (Parse_error loc))
   | e -> raise e
 
-let rec find_ancessor f path =
+let rec find_ancestor f path =
   if f path
   then Some path
   else
     let parent = Filename.dirname path in
     if parent = path
     then None (* root directory *)
-    else find_ancessor f parent
+    else find_ancestor f parent
 
 let is_ocaml_building_directory path =
   let check_subdir d =
@@ -101,10 +101,10 @@ let is_ocaml_building_directory path =
   check_file "Makefile"
 
 let find_ocaml_root_directory ?(path=run_directory) () =
-  find_ancessor is_ocaml_building_directory path
+  find_ancestor is_ocaml_building_directory path
 
 let make_directory dir =
-  try Unix.mkdir dir 0o777
+  try Unix.mkdir dir 0o755
   with Unix.Unix_error (Unix.EEXIST, _, _) -> ()
 
 let home_directory () =
@@ -153,7 +153,7 @@ let contains_operf_root_directory path =
   not (Sys.is_directory (config_file_name path))
 
 let find_operf_directory ?(path=run_directory) () =
-  find_ancessor contains_operf_root_directory path
+  find_ancestor contains_operf_root_directory path
 
 type config_file' =
   { name' : string option;
@@ -267,7 +267,7 @@ let is_data_directory path =
     operf_source_files
 
 let data_directory =
-  match find_ancessor is_data_directory executable_directory with
+  match find_ancestor is_data_directory executable_directory with
   | None -> Filename.concat share_directory Static_config.name
   | Some s -> s
 
