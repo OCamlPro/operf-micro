@@ -1,5 +1,4 @@
-
-PREFIX := /usr/local/
+PREFIX=%{prefix}%
 
 NAME := operf-micro
 
