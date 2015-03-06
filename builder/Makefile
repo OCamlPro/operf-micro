@@ -17,7 +17,7 @@ endif
 all: $(BIN)
 
 static_config.ml: ../Makefile.conf
-	echo "let name = \"$(NAME)\"" > static_config.ml
+	echo "let name = \"$(PKG)\"" > static_config.ml
 	echo "let prefix = \"$(PREFIX)\"" >> static_config.ml
 
 parser.ml parser.mli: parser.mly
