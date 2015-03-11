@@ -1,6 +1,7 @@
 PKG := operf-micro
 PREFIX := %{prefix}%
 SHARE := $(PREFIX)/share/
+BIN := $(PREFIX)/bin/
 BEST := opt
 
 EXEEXT :=

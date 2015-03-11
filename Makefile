@@ -9,16 +9,18 @@ all:
 	$(MAKE) -C builder all
 
 install_benchs:
-	cp -R benchmarks $(SHARE)/$(PKG)
+	mkdir -p $(SHARE)/$(PKG)/
+	cp -a $(FILES) $(SHARE)/$(PKG)/
 
 install: all install_benchs
-	opam-installer --prefix=$(PREFIX) $(PKG).install
+	cp -a builder/builder.opt $(BIN)/operf-micro
 
 uninstall_benchs:
-	rm -r $(SHARE)/$(PKG)/benchmarks
+	rm -rf $(SHARE)/$(PKG)/benchmarks
 
 uninstall: uninstall_benchs
-	opam-installer --prefix=$(PREFIX) -u $(PKG).install
+	rm -f $(BIN)/operf-micro
+	rm -rf $(SHARE)/$(PKG)
 
 distclean: clean
 	rm -f Makefile.conf
@@ -29,4 +31,5 @@ clean:
 depend:
 	$(MAKE) -C builder depend
 
-.PHONY: all install install-builder install-data depend clean
+.PHONY: all install install-builder install-data depend clean\
+	uninstall_benchs uninstall
