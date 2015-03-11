@@ -20,6 +20,9 @@ uninstall_benchs:
 uninstall: uninstall_benchs
 	opam-installer --prefix=$(PREFIX) -u $(PKG).install
 
+distclean: clean
+	rm -f Makefile.conf
+
 clean:
 	$(MAKE) -C builder clean
 
