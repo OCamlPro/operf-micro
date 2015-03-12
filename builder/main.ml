@@ -351,7 +351,7 @@ let compare_subcommand () =
   [],
   (fun _s -> ()),
   "\n\
-   do things...",
+   comparisons between runs",
   compare
 
 let doall_subcommand () =
