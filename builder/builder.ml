@@ -34,7 +34,7 @@ let opt_binary b =
 let byte_binary b =
   Filename.concat b.bench_path "benchmark.byte"
 
-let ocamlopt_command c b =
+let ocamlopt_command c other_args b =
   Detect_config.ocamlopt_command
     c
     ([ A "-g" ] @
@@ -43,6 +43,7 @@ let ocamlopt_command c b =
      opt_libraries c b @
      [ A "-I"; ID c.operf_files_path ] @
      [ A "-I"; ID b.bench_path ] @
+     other_args @
      (operf_built_files c [ "micro_bench_types.cmx" ]) @
      bench_files b @
      (operf_built_files c [ "time_stamp_counter.cmx"; "micro_bench_run.cmx" ]))
@@ -99,8 +100,8 @@ let build_operf_files c opt =
   in
   List.for_all aux operf_source_files
 
-let build_opt c b =
-  match ocamlopt_command c b with
+let build_opt c b opt_arg =
+  match ocamlopt_command c opt_arg b with
   | None -> false
   | Some command ->
     let r = run_command command in
@@ -113,7 +114,7 @@ let build_byte c b =
     let r = run_command command in
     (r <> None && Sys.file_exists (opt_binary b))
 
-let build_benchmarks c l =
+let build_benchmarks c l ocamlopt_arg =
   Printf.eprintf "building operf base files\n\n%!";
   let r_byte = build_operf_files c false in
   let r_opt = build_operf_files c true in
@@ -123,7 +124,7 @@ let build_benchmarks c l =
      exit 1)
   else
     List.iter (fun b ->
-        if not (build_opt c b)
+        if not (build_opt c b ocamlopt_arg)
         then Printf.eprintf "couldn't build %s\n%!" (opt_binary b))
       l
 

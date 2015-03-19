@@ -13,18 +13,23 @@ exception Error of error
 
 let set_string r = Arg.String (fun v -> r := Some v)
 
-let do_build () =
+let compile_arg = ref []
+let set_compile_arg s = compile_arg := s :: !compile_arg
+let compiler_arg_opt = ["--ccopt", Arg.String set_compile_arg, "s add ocamlopt argument"]
+
+let do_build ocamlopt_arg =
   let config = Detect_config.load_operf_config_file () in
   let context = Detect_config.load_context config in
   let build_descr = load_build_descrs context in
   Detect_config.prepare_build context;
-  build_benchmarks context build_descr
+  let ocamlopt_arg = List.rev_map (fun s -> Command.A s) ocamlopt_arg in
+  build_benchmarks context build_descr ocamlopt_arg
 
 let build_subcommand () =
-  [],
+  compiler_arg_opt,
   (fun _s -> ()),
   "",
-  do_build
+  (fun () -> do_build !compile_arg)
 
 let list_subcommand () =
   let list () =
@@ -355,10 +360,10 @@ let compare_subcommand () =
   compare
 
 let doall_subcommand () =
-  let do_all name bin_dir output_dir selected_sets rc =
+  let do_all name bin_dir output_dir selected_sets compile_arg rc =
     do_clean ();
     do_init name bin_dir;
-    do_build ();
+    do_build compile_arg;
     do_run output_dir rc;
     do_results [name] selected_sets
   in
@@ -366,7 +371,8 @@ let doall_subcommand () =
   Arg_opt.bin_dir_arg @
   Arg_opt.run_config_arg @
   Arg_opt.output_dir_arg @
-  Arg_opt.selected_sets_arg,
+  Arg_opt.selected_sets_arg @
+  compiler_arg_opt,
   (fun s -> args := s :: !args),
   "[<args>] <name>\n\
    clean, initialise the .operf directory.\n",
@@ -375,7 +381,7 @@ let doall_subcommand () =
      | [name] ->
        let selected_set = Arg_opt.get_selected_sets () in
        let rc = Arg_opt.make_run_config selected_set in
-       do_all name !Arg_opt.bin_dir !Arg_opt.output_dir selected_set rc
+       do_all name !Arg_opt.bin_dir !Arg_opt.output_dir selected_set !compile_arg rc
      | _ -> failwith "wrong number of arguments, expected: <name>")
 
 let subcommands =
