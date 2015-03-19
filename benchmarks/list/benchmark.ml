@@ -135,7 +135,7 @@ let interval_range =
     Range (100_000, 1_000_000), Long;
     Range (10_000_000, 100_000_000), Longer ]
 
-let check_interval (n, l) =
+let check_interval n l =
   let rec aux = function
     | (-1), [] -> Ok
     | i, h :: t ->
@@ -146,7 +146,7 @@ let check_interval (n, l) =
   in
   aux (n, l)
 
-let mk_interval f = fun i -> i, f 0 i
+let mk_interval f = fun i -> f 0 i
 
 let interval_group =
   Int_group
@@ -160,27 +160,30 @@ let interval_group =
 
 let rev_range = interval_range
 
-let check_rev (orig,l) =
+let prepare_rev i = interval_tail_rec 0 i
+
+let check_rev n l =
+  let orig = prepare_rev n in
   if orig = List.rev l
   then Ok
   else Error ""
 
-let mk_rev f = (fun l -> l, f l)
-
 let rev_group =
   Int_group
-    (["rec", mk_rev list_rev;
-      "rev_while", mk_rev list_rev_while],
-     (fun i -> interval_tail_rec 0 i),
+    (["rec", list_rev;
+      "rev_while", list_rev_while],
+     prepare_rev,
      check_rev,
      rev_range)
 
-let mk_map_succ f = (fun l -> l, f succ l)
+let mk_map_succ f = (fun l -> f succ l)
 
+let prepare_map_succ i = interval_tail_rec 0 i
 
 let map_succ_range = interval_range
 
-let check_map_succ (orig, l) =
+let check_map_succ i l =
+  let orig = prepare_map_succ i in
   if List.map (fun i -> i - 1) l = orig
   then Ok
   else Error ""
@@ -196,35 +199,35 @@ let map_succ_group =
 
 
 let rev_map_succ_range = interval_range
+let prepare_rev_map_succ i = interval_tail_rec 0 i
 
-let check_rev_map_succ (orig, l) =
+let check_rev_map_succ n l =
+  let orig = prepare_rev_map_succ n in
   if List.rev_map (fun i -> i - 1) l = orig
   then Ok
   else Error ""
 
-let mk_rev_map_succ f = (fun l -> l, f succ l)
+let mk_rev_map_succ f = (fun l -> f succ l)
 
 let rev_map_succ_group =
   Int_group
     (["rev_map_tail_rec succ", mk_rev_map_succ rev_map_tail_rec;
       "rev_map_while succ", mk_rev_map_succ rev_map_while],
-     (fun i -> interval_tail_rec 0 i),
+     prepare_rev_map_succ,
      check_rev_map_succ,
      rev_map_succ_range)
 
 
 let fold_left_add_range = interval_range
 
-let prepare_fold_left_add i =
-  i, interval_tail_rec 0 i
+let prepare_fold_left_add i = interval_tail_rec 0 i
 
-let check_fold_left_add (i, r) =
+let check_fold_left_add i r =
   if (i * (i+1)) / 2 = r
   then Ok
   else Error ""
 
-let mk_fold_left_add f =
-  fun (i, l) -> i, f (+) 0 l
+let mk_fold_left_add f = fun l -> f (+) 0 l
 
 let fold_left_add_group =
   Int_group
@@ -239,13 +242,13 @@ let fold_left_add_float_range = interval_range
 
 let prepare_fold_left_add_float = prepare_fold_left_add
 
-let check_fold_left_add_float (i, r) =
+let check_fold_left_add_float i r =
   if (i * (i+1)) / 2 = int_of_float r
   then Ok
   else Error ""
 
 let mk_fold_left_add_float f =
-  fun (i, l) -> i, f (fun acc i -> acc +. float i) 0. l
+  fun l -> f (fun acc i -> acc +. float i) 0. l
 
 let fold_left_add_float_group =
   Int_group

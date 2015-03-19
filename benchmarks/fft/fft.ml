@@ -134,8 +134,8 @@ let fft px py np =
 let test np =
   let enp = float np in
   let npm = np / 2 - 1 in
-  let pxr = Array.create (np+2) 0.0
-  and pxi = Array.create (np+2) 0.0 in
+  let pxr = Array.make (np+2) 0.0
+  and pxi = Array.make (np+2) 0.0 in
   let t = pi /. enp in
   pxr.(1) <- (enp -. 1.0) *. 0.5;
   pxi.(1) <- 0.0;
@@ -180,8 +180,8 @@ let test np =
 
 open Micro_bench_types
 
-let run i = i, test (1 lsl i)
-let check (i, (zr, zi)) =
+let run i = test (1 lsl i)
+let check i (zr, zi) =
   if (abs_float zr <= 1e-8 && abs_float zi <= 1e-8)
   then Ok
   else Error ("n: " ^ string_of_int (1 lsl i)

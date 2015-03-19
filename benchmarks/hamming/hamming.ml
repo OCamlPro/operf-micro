@@ -115,7 +115,7 @@ let run i =
   ignore (skip h i);
   skip h i
 
-let check_i _ = Ok (* we do not check for arbitrary parameter *)
+let check_i _ _ = Ok (* we do not check for arbitrary parameter *)
 
 let check_string l =
   let b = Buffer.create 1000 in

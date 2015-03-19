@@ -11,8 +11,8 @@ let results =
 open Micro_bench_types
 
 let prepare i = i
-let run i = i, fib i
-let check (i, n) =
+let run i = fib i
+let check i n =
   if n = results.(i)
   then Ok
   else Error ("fib " ^ (string_of_int i) ^ " returned " ^ (string_of_int n)

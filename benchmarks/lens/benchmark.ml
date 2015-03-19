@@ -33,20 +33,12 @@ let p2 = {
 
 let lens_rect_area r =
   abs (((r |. (p1 |-- x)) - (r |. (p2 |-- x)))
-       * ((r |. (p1 |-- y)) - (r |. (p2 |-- y)))),
-  r
+       * ((r |. (p1 |-- y)) - (r |. (p2 |-- y))))
 
 let direct_rect_area r =
-  abs ((r.p1.x - r.p2.x) * (r.p1.y - r.p2.y)),
-  r
+  abs ((r.p1.x - r.p2.x) * (r.p1.y - r.p2.y))
 
 open Micro_bench_types
-
-let check_rect_area (res, r) =
-  let s = abs ((r.p1.x - r.p2.x) * (r.p1.y - r.p2.y)) in
-  if s = res
-  then Ok
-  else Error "rect_area"
 
 (* We prepare to avoid potential constant propagation here *)
 let prepare i =
@@ -54,6 +46,13 @@ let prepare i =
   let p2 = { x = 3333 + i; y = 4444 + i } in
   let r = { p1; p2 } in
   r
+
+let check_rect_area n res =
+  let r = prepare n in
+  let s = abs ((r.p1.x - r.p2.x) * (r.p1.y - r.p2.y)) in
+  if s = res
+  then Ok
+  else Error "rect_area"
 
 let range = [ Any, Short ]
 

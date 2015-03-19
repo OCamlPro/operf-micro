@@ -24,7 +24,7 @@ let rev a =
     done;
   a
 
-let check_int a =
+let check_int _ a =
   try
     for i = 0 to Array1.dim a - 1 do
       if Array1.get a i <> (Array1.dim a - (1 + i))
@@ -33,7 +33,7 @@ let check_int a =
     Micro_bench_types.Ok
   with Exit -> Micro_bench_types.Error "incorrect rev"
 
-let check_int32 a =
+let check_int32 _ a =
   try
     for i = 0 to Array1.dim a - 1 do
       if Int32.to_int (Array1.get a i) <> (Array1.dim a - (1 + i))

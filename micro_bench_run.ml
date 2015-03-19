@@ -435,7 +435,7 @@ module Tester = struct
         if verbosity = `High
         then print_list ["running test"; name; "with argument"; string_of_int v];
         try
-          match test (f (prepare v)) with
+          match test v (f (prepare v)) with
           | Ok -> ()
           | Error e ->
             errors := true;

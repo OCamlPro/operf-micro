@@ -327,7 +327,7 @@ open Micro_bench_types
 
 exception Err of (int * float * float)
 
-let check_1 result =
+let check_1 _ result =
   let result = result.(0) in
   try
     Array.iteri (fun i (a,b) ->
@@ -349,7 +349,7 @@ let check_1 result =
     Error s
 
 let functions =
-  [ "bench", Int (run, (fun i -> i), (fun x -> check_1 x),
+  [ "bench", Int (run, (fun i -> i), check_1,
                   [ Range (20, 100), Short ])
   ]
 

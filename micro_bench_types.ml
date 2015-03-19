@@ -26,14 +26,14 @@ type 'result unit_group =
 type ('result, 'arg) int_function =
   ( 'arg -> 'result )     (* benchmarked function *)
   * ( int -> 'arg )       (* argument generation *)
-  * ( 'result -> result ) (* test function *)
+  * ( int -> 'result -> result ) (* test function *)
   * (range * cost) list   (* estimated run time for parameter range *)
 
 type ('result, 'arg) int_group =
   ( string * ( 'arg -> 'result ) ) list
                           (* benchmarked functions *)
   * ( int -> 'arg )       (* argument generation *)
-  * ( 'result -> result ) (* test function *)
+  * ( int -> 'result -> result ) (* test function *)
   * (range * cost) list   (* estimated run time for parameter range *)
 
 type function_kind =
