@@ -8,14 +8,15 @@ type error =
   | Unexpected of string
   | Problem_creating_save_directory of string
   | No_save_directory of string
+  | Cannot_find_compiler
 
 exception Error of error
 
 let set_string r = Arg.String (fun v -> r := Some v)
+let add_string r = Arg.String (fun v -> r := v :: !r)
 
 let compile_arg = ref []
-let set_compile_arg s = compile_arg := s :: !compile_arg
-let compiler_arg_opt = ["--ccopt", Arg.String set_compile_arg, "s add ocamlopt argument"]
+let compiler_arg_opt = ["--ccopt", add_string compile_arg, "s add ocamlopt argument"]
 
 let do_build ocamlopt_arg =
   let config = Detect_config.load_operf_config_file () in
@@ -30,6 +31,36 @@ let build_subcommand () =
   (fun _s -> ()),
   "",
   (fun () -> do_build !compile_arg)
+
+let do_check extra_dir =
+  let path =
+    Filename.concat (Filename.get_temp_dir_name ())
+      "operf-micro-check" in
+  Command.remove path;
+  Unix.mkdir path 0o777;
+  match Detect_config.find_ocaml_binary_path () with
+  | None ->
+    raise (Error Cannot_find_compiler)
+  | Some (bin_dir:Command.directory) ->
+    let _ : Command.directory =
+      Detect_config.initialize_with_bin_dir
+        ~path
+        ~with_default_benchmarks:false
+        "check" extra_dir bin_dir in
+    let config = Detect_config.load_operf_config_file () ~path in
+    let context = Detect_config.load_context config in
+    let build_descr = load_build_descrs context in
+    Detect_config.prepare_build context;
+    build_benchmarks context build_descr [];
+    Command.remove path
+
+let check_subcommand () =
+  let r = ref [] in
+  [],
+  (fun s -> r := s :: !r),
+  "[<paths>]\n\
+   Typecheck benchmarks",
+  (fun () -> do_check !r)
 
 let list_subcommand () =
   let list () =
@@ -86,8 +117,8 @@ module Arg_opt = struct
   let bin_dir = ref None
   let bin_dir_arg = ["--bin-dir", set_string bin_dir, "p path to ocaml binary directory"]
 
-  let extra_dir = ref None
-  let extra_dir_arg = ["-I", set_string extra_dir, "p path to extra benchmarks directory"]
+  let extra_dir = ref []
+  let extra_dir_arg = ["-I", add_string extra_dir, "p path to extra benchmarks directory"]
 
   let selected_sets = ref []
   let add_selected_set = Arg.String (fun s -> selected_sets := s :: !selected_sets)
@@ -386,7 +417,7 @@ let doall_subcommand () =
      | [name] ->
        let selected_set = Arg_opt.get_selected_sets () in
        let rc = Arg_opt.make_run_config selected_set in
-       do_all name !Arg_opt.bin_dir !Arg_opt.extra_dir !Arg_opt.output_dir selected_set !compile_arg
+       do_all name !Arg_opt.bin_dir !Arg_opt.extra_dir !Arg_opt.output_dir selected_set !compile_arg rc
      | _ -> failwith "wrong number of arguments, expected: <name>")
 
 let subcommands =
@@ -397,7 +428,8 @@ let subcommands =
     "clean", clean_subcommand;
     "results", results_subcommand;
     "compare", compare_subcommand;
-    "doall", doall_subcommand ]
+    "doall", doall_subcommand;
+    "check", check_subcommand ]
 
 let error fmt =
   Format.kfprintf (fun _ppf -> exit 1) Format.err_formatter fmt
@@ -410,7 +442,9 @@ let print_error ppf = function
   | Problem_creating_save_directory s ->
     Format.fprintf ppf "Couldn't create save directory: %s" s
   | No_save_directory s ->
-     Format.fprintf ppf "Couldn't find save directory: %s" s
+    Format.fprintf ppf "Couldn't find save directory: %s" s
+  | Cannot_find_compiler ->
+    Format.fprintf ppf "Couldn't find a compiler in the path"
 
 let print_error_benchmark ppf = function
   | Missing_file file ->

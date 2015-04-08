@@ -287,24 +287,26 @@ let data_directory =
   | None -> Filename.concat share_directory Static_config.name
   | Some s -> s
 
-let write_initialise root_dir extra_dir config =
+let write_initialise root_dir extra_dir config ~with_default_benchmarks =
+  if Command.debug then
+    Printf.eprintf "init in directory %s\n\
+                    binary directory: %s\n%!"
+      (operf_subdir root_dir)
+      config.ocaml_bin_dir;
   make_directory (operf_subdir root_dir);
   make_directory (micro_subdir root_dir);
   write_file (config_file_name root_dir)
     (fun ppf ->
        Files.print ppf (config_to_file config);
        Format.pp_print_newline ppf ());
-  copy_benchmark_files data_directory root_dir;
-  match extra_dir with
-  | Some s ->
-    copy_base_files data_directory root_dir;
-    copy_extra_benchmark_files s root_dir;
-    copy_home_files root_dir
-  | None ->
-    copy_base_files data_directory root_dir;
-    copy_home_files root_dir
+  if with_default_benchmarks
+  then copy_benchmark_files data_directory root_dir
+  else make_directory (benchmarks_subdir root_dir);
+  copy_base_files data_directory root_dir;
+  List.iter (fun s -> copy_extra_benchmark_files s root_dir) extra_dir;
+  copy_home_files root_dir
 
-let initialize_in_compiler_dir ?path name extra_dir =
+let initialize_in_compiler_dir ?path ?(with_default_benchmarks=true) name extra_dir =
   let root_dir =
     match find_ocaml_root_directory ?path () with
     | None ->
@@ -315,10 +317,12 @@ let initialize_in_compiler_dir ?path name extra_dir =
     { name = name;
       ocaml_bin_dir = root_dir;
       operf_root_dir = operf_subdir root_dir } in
-  write_initialise root_dir extra_dir config;
+  write_initialise root_dir extra_dir config ~with_default_benchmarks;
   root_dir
 
-let initialize_with_bin_dir ?(path=run_directory) name extra_dir ocaml_bin_dir =
+let initialize_with_bin_dir
+    ?(path=run_directory) ?(with_default_benchmarks=true)
+    name extra_dir ocaml_bin_dir =
   let root_dir = path in
   let ocaml_bin_dir =
     if Sys.file_exists ocaml_bin_dir
@@ -331,7 +335,7 @@ let initialize_with_bin_dir ?(path=run_directory) name extra_dir ocaml_bin_dir =
     { name = name;
       ocaml_bin_dir;
       operf_root_dir = operf_subdir root_dir } in
-  write_initialise root_dir extra_dir config;
+  write_initialise root_dir extra_dir config ~with_default_benchmarks;
   root_dir
 
 let bin_suffix =
@@ -339,8 +343,8 @@ let bin_suffix =
   then ""
   else ".exe"
 
-let find_bin config name =
-  let bin s = Filename.concat config.ocaml_bin_dir (s^bin_suffix) in
+let find_bin bin_dir name =
+  let bin s = Filename.concat bin_dir (s^bin_suffix) in
   let opt = bin (name^".opt") in
   if Sys.file_exists opt
   then Some (opt, Native)
@@ -351,10 +355,10 @@ let find_bin config name =
     else None
 
 let find_ocamlc config =
-  find_bin config "ocamlc"
+  find_bin config.ocaml_bin_dir "ocamlc"
 
 let find_ocamlopt config =
-  find_bin config "ocamlopt"
+  find_bin config.ocaml_bin_dir "ocamlopt"
 
 let find_ocamlrun config =
   let bin_name = "ocamlrun"^bin_suffix in
@@ -431,3 +435,30 @@ let ocamlc_command context args dir =
 
 let prepare_command context (file, kind) args dir =
   make_command context.ocamlrun_path (file, kind) args dir
+
+let find_ocaml_binary_path () =
+  let find_compiler_path name =
+    match run_command ~use_path:true (name, [A "-where"], None) with
+    | None -> None
+    | Some path ->
+      let path = String.trim path in
+      let bin_path =
+        Filename.concat
+          (Filename.dirname (Filename.dirname path))
+          "bin" in
+      let file =
+        Filename.concat
+          bin_path
+          (name^bin_suffix) in
+      if Command.debug then
+        Printf.eprintf "ocamlc -where returned %s\n\
+                        looking for %s\n%!" path file;
+      if Sys.file_exists file
+      then Some bin_path
+      else None
+  in
+  match find_compiler_path "ocamlopt" with
+  | Some _ as r -> r
+  | None ->
+    find_compiler_path "ocamlopt.opt"
+

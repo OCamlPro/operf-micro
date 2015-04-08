@@ -12,7 +12,7 @@ type command_part =
 
 type command = file * command_part list * directory option
 
-val run_command : command -> string option
+val run_command : ?use_path:bool -> command -> string option
 (* returns stdout *)
 
 val run_and_read : (command * file) -> string option
@@ -35,3 +35,5 @@ val get_and_make_subdir : (unit -> (directory, directory) result) ->
 val remove : directory -> unit
 
 val subdirectories : directory -> directory list
+
+val debug : bool

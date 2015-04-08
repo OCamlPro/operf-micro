@@ -101,9 +101,9 @@ let make_tmp_file suffix =
   let name = Filename.temp_file "" suffix in
   name, Unix.openfile name [Unix.O_WRONLY; Unix.O_CREAT; Unix.O_APPEND] 0o644
 
-let run_command (c:command) =
+let run_command ?(use_path=false) (c:command) =
   let (prog, _,_) = c in
-  if not (Sys.file_exists prog)
+  if (not use_path) && (not (Sys.file_exists prog))
   then (Printf.eprintf "Missing program %s\n" prog;
         None)
   else

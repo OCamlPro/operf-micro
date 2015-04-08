@@ -43,8 +43,14 @@ val find_operf_directory : ?path:directory -> unit -> directory option
 
 val load_operf_config_file : ?path:directory -> unit -> config
 
-val initialize_in_compiler_dir : ?path:directory -> string -> string option -> directory
-val initialize_with_bin_dir : ?path:directory -> string -> string option -> directory -> directory
+val initialize_in_compiler_dir :
+  ?path:directory ->
+  ?with_default_benchmarks:bool ->
+  string -> directory list -> directory
+val initialize_with_bin_dir :
+  ?path:directory ->
+  ?with_default_benchmarks:bool ->
+  string -> directory list -> directory -> directory
 
 val load_context : config -> context
 
@@ -56,6 +62,7 @@ val ocamlc_command : context -> command_part list -> directory option -> command
 val prepare_command : context -> program ->
   command_part list -> directory option -> command option
 
+val find_ocaml_binary_path : unit -> directory option
 
 type source_file =
   | C
