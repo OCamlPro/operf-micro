@@ -21,6 +21,8 @@ val run_and_read_lines : (command * file) -> string list option
 
 val copy_file : file -> file -> unit
 
+val recursive_extra_copy : file -> file -> unit
+
 val recursive_copy : file -> file -> unit
 
 val write_file : file -> (Format.formatter -> unit) -> unit

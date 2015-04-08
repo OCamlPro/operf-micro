@@ -239,6 +239,22 @@ let load_operf_config_file ?path () =
     let c = config_file_name path in
     parse_operf_config_file path c (load_config_file c)
 
+let copy_extra_benchmark_files extra_dir dst_root =
+  let src = extra_dir in
+  let dst = benchmarks_subdir dst_root in
+  if Sys.is_directory src
+  then recursive_extra_copy src dst
+
+let copy_home_files dst_root =
+  try
+    let src = Filename.concat (Sys.getenv "HOME") ".operf/micro/benchmarks" in
+    if Sys.file_exists src
+    then
+        let dst = benchmarks_subdir dst_root in
+        recursive_extra_copy src dst
+    else ()
+  with _ -> ()
+
 let copy_benchmark_files src_root dst_root =
   let src = Filename.concat src_root "benchmarks" in
   let dst = benchmarks_subdir dst_root in
@@ -271,7 +287,7 @@ let data_directory =
   | None -> Filename.concat share_directory Static_config.name
   | Some s -> s
 
-let write_initialise root_dir config =
+let write_initialise root_dir extra_dir config =
   make_directory (operf_subdir root_dir);
   make_directory (micro_subdir root_dir);
   write_file (config_file_name root_dir)
@@ -279,9 +295,16 @@ let write_initialise root_dir config =
        Files.print ppf (config_to_file config);
        Format.pp_print_newline ppf ());
   copy_benchmark_files data_directory root_dir;
-  copy_base_files data_directory root_dir
+  match extra_dir with
+  | Some s ->
+    copy_base_files data_directory root_dir;
+    copy_extra_benchmark_files s root_dir;
+    copy_home_files root_dir
+  | None ->
+    copy_base_files data_directory root_dir;
+    copy_home_files root_dir
 
-let initialize_in_compiler_dir ?path name =
+let initialize_in_compiler_dir ?path name extra_dir =
   let root_dir =
     match find_ocaml_root_directory ?path () with
     | None ->
@@ -292,10 +315,10 @@ let initialize_in_compiler_dir ?path name =
     { name = name;
       ocaml_bin_dir = root_dir;
       operf_root_dir = operf_subdir root_dir } in
-  write_initialise root_dir config;
+  write_initialise root_dir extra_dir config;
   root_dir
 
-let initialize_with_bin_dir ?(path=run_directory) name ocaml_bin_dir =
+let initialize_with_bin_dir ?(path=run_directory) name extra_dir ocaml_bin_dir =
   let root_dir = path in
   let ocaml_bin_dir =
     if Sys.file_exists ocaml_bin_dir
@@ -308,7 +331,7 @@ let initialize_with_bin_dir ?(path=run_directory) name ocaml_bin_dir =
     { name = name;
       ocaml_bin_dir;
       operf_root_dir = operf_subdir root_dir } in
-  write_initialise root_dir config;
+  write_initialise root_dir extra_dir config;
   root_dir
 
 let bin_suffix =

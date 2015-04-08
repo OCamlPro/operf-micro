@@ -208,6 +208,46 @@ let rec recursive_copy src dst =
     | _ ->
       Printf.eprintf "ignored file: %s@." src
 
+let is_benchmark dir =
+  let handle = Unix.opendir dir in
+  let rec contains_bench_files handle =
+    try
+      let filename = Unix.readdir handle in
+      match filename with
+      | "." | ".." -> contains_bench_files handle
+      | "benchmark.ml" | "benchmark.build" -> true
+      | _ -> contains_bench_files handle
+    with End_of_file -> false in
+  let res = contains_bench_files handle in
+  Unix.closedir handle;
+  res
+
+let rec recursive_extra_copy src dst =
+  if not (Sys.file_exists src && Sys.is_directory src)
+  then failwith ("Directory doen't exist: " ^ src)
+  else
+    if (is_benchmark src)
+    then
+      let basename = Filename.basename src in
+      let dst = Filename.concat dst basename in
+      recursive_copy src dst
+    else
+      let handle = Unix.opendir src in
+      begin try
+          while true do
+            let filename = Unix.readdir handle in
+            match filename with
+            | "." | ".." -> ()
+            | _ ->
+              let path = Filename.concat src filename in
+              if Sys.is_directory path
+              then recursive_extra_copy path dst
+              else ()
+          done
+        with End_of_file -> ()
+      end;
+      Unix.closedir handle
+
 let write_file filename f =
   let oc = open_out filename in
   let ppf = Format.formatter_of_out_channel oc in

@@ -43,8 +43,8 @@ val find_operf_directory : ?path:directory -> unit -> directory option
 
 val load_operf_config_file : ?path:directory -> unit -> config
 
-val initialize_in_compiler_dir : ?path:directory -> string -> directory
-val initialize_with_bin_dir : ?path:directory -> string -> directory -> directory
+val initialize_in_compiler_dir : ?path:directory -> string -> string option -> directory
+val initialize_with_bin_dir : ?path:directory -> string -> string option -> directory -> directory
 
 val load_context : config -> context
 
