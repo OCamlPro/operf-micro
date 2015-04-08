@@ -154,7 +154,7 @@ let init_subcommand () =
      match !name with
      | None -> name := Some s
      | Some _ -> raise (Error (Unexpected s))),
-  "[<args>] <name> [-I path]\n\
+  "[<args>] <name> \n\
    initialise the .operf directory.\n",
   (fun () ->
      let name = get_opt !name
