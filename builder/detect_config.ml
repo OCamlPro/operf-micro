@@ -242,8 +242,7 @@ let load_operf_config_file ?path () =
 let copy_extra_benchmark_files extra_dir dst_root =
   let src = extra_dir in
   let dst = benchmarks_subdir dst_root in
-  if Sys.is_directory src
-  then recursive_extra_copy src dst
+  recursive_extra_copy src dst
 
 let copy_home_files dst_root =
   try

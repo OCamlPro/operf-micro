@@ -214,7 +214,6 @@ let is_benchmark dir =
     try
       let filename = Unix.readdir handle in
       match filename with
-      | "." | ".." -> contains_bench_files handle
       | "benchmark.ml" | "benchmark.build" -> true
       | _ -> contains_bench_files handle
     with End_of_file -> false in
