@@ -86,6 +86,9 @@ module Arg_opt = struct
   let bin_dir = ref None
   let bin_dir_arg = ["--bin-dir", set_string bin_dir, "p path to ocaml binary directory"]
 
+  let extra_dir = ref None
+  let extra_dir_arg = ["-I", set_string extra_dir, "p path to extra benchmarks directory"]
+
   let selected_sets = ref []
   let add_selected_set = Arg.String (fun s -> selected_sets := s :: !selected_sets)
   let selected_sets_arg = ["--selected", add_selected_set, "s run benchmark s. All are run if none is specified";
@@ -133,30 +136,31 @@ let run_subcommand () =
   "",
   run
 
-let do_init name bin_dir =
+let do_init name extra_dir bin_dir =
   let init_dir =
     match bin_dir with
     | None ->
-      Detect_config.initialize_in_compiler_dir name
+      Detect_config.initialize_in_compiler_dir name extra_dir
     | Some dir ->
-      Detect_config.initialize_with_bin_dir name dir
+      Detect_config.initialize_with_bin_dir name extra_dir dir
   in
   Format.printf "initialised in directory %s@." init_dir
 
 let init_subcommand () =
   let name = ref None in
-  Arg_opt.bin_dir_arg,
+  Arg_opt.bin_dir_arg @
+  Arg_opt.extra_dir_arg,
   (fun s ->
      match !name with
      | None -> name := Some s
      | Some _ -> raise (Error (Unexpected s))),
-  "[<args>] <name>\n\
+  "[<args>] <name> [-I path]\n\
    initialise the .operf directory.\n",
   (fun () ->
      let name = get_opt !name
          (fun () -> raise (Error (Mandatory_option "name")))
      in
-     do_init name !Arg_opt.bin_dir)
+     do_init name !Arg_opt.extra_dir !Arg_opt.bin_dir)
 
 let do_clean () =
   match Detect_config.find_operf_directory () with
@@ -360,15 +364,16 @@ let compare_subcommand () =
   compare
 
 let doall_subcommand () =
-  let do_all name bin_dir output_dir selected_sets compile_arg rc =
+  let do_all name bin_dir extra_dir output_dir selected_sets compile_arg rc =
     do_clean ();
-    do_init name bin_dir;
+    do_init name extra_dir bin_dir;
     do_build compile_arg;
     do_run output_dir rc;
     do_results [name] selected_sets
   in
   let args = ref [] in
   Arg_opt.bin_dir_arg @
+  Arg_opt.extra_dir_arg @
   Arg_opt.run_config_arg @
   Arg_opt.output_dir_arg @
   Arg_opt.selected_sets_arg @
@@ -381,7 +386,7 @@ let doall_subcommand () =
      | [name] ->
        let selected_set = Arg_opt.get_selected_sets () in
        let rc = Arg_opt.make_run_config selected_set in
-       do_all name !Arg_opt.bin_dir !Arg_opt.output_dir selected_set !compile_arg rc
+       do_all name !Arg_opt.bin_dir !Arg_opt.extra_dir !Arg_opt.output_dir selected_set !compile_arg
      | _ -> failwith "wrong number of arguments, expected: <name>")
 
 let subcommands =
