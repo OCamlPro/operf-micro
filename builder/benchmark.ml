@@ -98,6 +98,10 @@ let benchmark_prog ~native b =
   then Filename.concat b.bench_path "benchmark.native"
   else Filename.concat b.bench_path "benchmark.byte"
 
+let nbr_function_command b : command * file =
+  let tmp = Filename.temp_file "nbr_function" "" in
+  (benchmark_prog ~native:true b, [ A "-o"; OF tmp; A "--count" ], None), tmp
+
 let list_function_command b : command * file =
   let tmp = Filename.temp_file "list_function" "" in
   (benchmark_prog ~native:true b, [ A "-o"; OF tmp; A "--raw-list" ], None), tmp
@@ -105,3 +109,12 @@ let list_function_command b : command * file =
 let benchmark_functions b =
   let c = list_function_command b in
   run_and_read_lines c
+
+let benchmark_nbr_functions b =
+  let c = nbr_function_command b in
+  match run_and_read_lines c with
+  | None -> 0
+  | Some l ->
+    if (List.length l) > 0
+    then int_of_string (List.hd l)
+    else 0
