@@ -128,6 +128,19 @@ let build_benchmarks c l ocamlopt_arg =
         then Printf.eprintf "couldn't build %s\n%!" (opt_binary b))
       l
 
+let print_time_approximation rc b =
+  let time_quota =
+    match rc.time_quota with
+    | None -> 10.0
+    | Some t -> t in
+  let different_values =
+    match rc.different_values with
+    | None -> float_of_int 1
+    | Some t -> float_of_int t in
+  let nbr_functions = float_of_int (Benchmark.benchmark_nbr_functions b) in
+  let time = time_quota *. different_values *. nbr_functions in
+  Printf.eprintf "Running %s benchmark (approx. %.1f secs)\n%!" b.bench_name time
+
 let run_function_command context ~native rc b : (command * file) option =
   let cost_option =
     match rc.maximal_cost with
@@ -149,6 +162,7 @@ let run_function_command context ~native rc b : (command * file) option =
     then (benchmark_prog ~native b, Native)
     else (benchmark_prog ~native b, Bytecode)
   in
+  print_time_approximation rc b;
   prepare_command context prog
     ([ A "-o"; OF tmp ] @
      cost_option @

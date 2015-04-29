@@ -164,6 +164,7 @@ struct
 
     let list = ref false in
     let raw_list = ref false in
+    let count = ref false in
     let output_file = ref None in
 
     let selection = ref None in
@@ -185,6 +186,7 @@ struct
         "--list", Set list, " list available benchmarks";
         "-l", Set list, " alias of --list";
         "--raw-list", Set raw_list, " list available benchmarks";
+        "--count", Set count, " print number of benchmarks";
 
         "-o", set_float output_file, " set output file";
       ] in
@@ -200,7 +202,9 @@ struct
       doc;
 
     let command =
-      if !list || !raw_list
+      if !count
+      then `Count
+      else if !list || !raw_list
       then `List !raw_list
       else
         `Run
@@ -519,7 +523,7 @@ module Tester = struct
 
   let string_of_range = function
     | Any -> "any"
-    | Range(x, y) -> "[" ^ string_of_int x ^ " ... " ^ string_of_int x ^ "]"
+    | Range(x, y) -> "[" ^ string_of_int x ^ " ... " ^ string_of_int y ^ "]"
     | List l -> "[" ^ (String.concat "; " (List.map string_of_int l)) ^ "]"
 
   let list output l =
@@ -697,19 +701,38 @@ let run_all config functions =
   then []
   else run_measures config functions
 
-let run functions =
-  match Config.parse () with
-  | output_file, `List raw ->
-    let output = match output_file with
+let with_output funct output_file =
+   let output = match output_file with
       | None -> stdout
       | Some f -> open_out f in
-    if raw
-    then List.iter (fun (name, _) -> Printf.fprintf output "%s\n" name) functions
-    else begin
-      Printf.fprintf output "benchmarks:\n";
-      Tester.list output functions
-    end;
-    close_out output
+   try
+     funct output;
+     close_out output
+   with e -> close_out output; raise e
+
+let run (functions : Micro_bench_types.benchmark list) =
+  match Config.parse () with
+  | output_file, `List raw ->
+    let f output =
+      if raw
+      then List.iter (fun (name, _) -> Printf.fprintf output "%s\n" name) functions
+      else begin
+        Printf.fprintf output "benchmarks:\n";
+        Tester.list output functions
+      end
+    in with_output f output_file
+  | output_file, `Count ->
+    let f output =
+      let len =
+        List.fold_left (fun acc (_, funs) -> match funs with
+          | Micro_bench_types.Unit _ -> acc + 1
+          | Micro_bench_types.Int _ -> acc +1
+          | Micro_bench_types.Unit_group (l,_,_) -> acc + (List.length l)
+          | Micro_bench_types.Int_group (l,_,_,_) -> acc + (List.length l)
+        ) 0 functions in
+      Printf.fprintf output "%i" len
+    in
+    with_output f output_file
   | output_file, `Run config ->
     let results = run_all config functions in
     let output = match output_file with

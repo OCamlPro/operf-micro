@@ -30,3 +30,5 @@ val benchmark_prog : native:bool -> benchmark -> file
 val load_build_descrs : context -> benchmark list
 
 val benchmark_functions : benchmark -> string list option
+
+val benchmark_nbr_functions : benchmark -> int
