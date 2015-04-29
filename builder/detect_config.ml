@@ -286,7 +286,7 @@ let data_directory =
   | None -> Filename.concat share_directory Static_config.name
   | Some s -> s
 
-let write_initialise root_dir extra_dir config ~with_default_benchmarks =
+let write_initialize root_dir extra_dir config ~with_default_benchmarks =
   if Command.debug then
     Printf.eprintf "init in directory %s\n\
                     binary directory: %s\n%!"
@@ -316,7 +316,7 @@ let initialize_in_compiler_dir ?path ?(with_default_benchmarks=true) name extra_
     { name = name;
       ocaml_bin_dir = root_dir;
       operf_root_dir = operf_subdir root_dir } in
-  write_initialise root_dir extra_dir config ~with_default_benchmarks;
+  write_initialize root_dir extra_dir config ~with_default_benchmarks;
   root_dir
 
 let initialize_with_bin_dir
@@ -334,7 +334,7 @@ let initialize_with_bin_dir
     { name = name;
       ocaml_bin_dir;
       operf_root_dir = operf_subdir root_dir } in
-  write_initialise root_dir extra_dir config ~with_default_benchmarks;
+  write_initialize root_dir extra_dir config ~with_default_benchmarks;
   root_dir
 
 let bin_suffix =

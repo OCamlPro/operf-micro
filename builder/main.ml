@@ -175,7 +175,7 @@ let do_init name extra_dir bin_dir =
     | Some dir ->
       Detect_config.initialize_with_bin_dir name extra_dir dir
   in
-  Format.printf "initialised in directory %s@." init_dir
+  Format.printf "initialized in directory %s@." init_dir
 
 let init_subcommand () =
   let name = ref None in
@@ -186,7 +186,7 @@ let init_subcommand () =
      | None -> name := Some s
      | Some _ -> raise (Error (Unexpected s))),
   "[<args>] <name> \n\
-   initialise the .operf directory.\n",
+   initialize the .operf directory.\n",
   (fun () ->
      let name = get_opt !name
          (fun () -> raise (Error (Mandatory_option "name")))
@@ -411,7 +411,7 @@ let doall_subcommand () =
   compiler_arg_opt,
   (fun s -> args := s :: !args),
   "[<args>] <name>\n\
-   clean, initialise the .operf directory.\n",
+   clean, initialize the .operf directory.\n",
   (fun () ->
      match !args with
      | [name] ->
