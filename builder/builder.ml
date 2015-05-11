@@ -156,6 +156,12 @@ let run_function_command context ~native rc b : (command * file) option =
     match rc.different_values with
     | None -> []
     | Some t -> [A "--different-values"; A (string_of_int t)] in
+  let stabilize_gc_option =
+    if rc.stabilize_gc then
+      [A "--stabilize-gc"]
+    else
+      []
+  in
   let tmp = Filename.temp_file "result_" "" in
   let prog =
     if native
@@ -167,7 +173,8 @@ let run_function_command context ~native rc b : (command * file) option =
     ([ A "-o"; OF tmp ] @
      cost_option @
      time_quota_option @
-     different_values_option)
+     different_values_option @
+     stabilize_gc_option)
     None
   |> may_map (fun c -> c, tmp)
 

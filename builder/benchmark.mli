@@ -18,7 +18,8 @@ type run_config =
   { maximal_cost : cost option;
     time_quota : float option;
     different_values : int option;
-    selected_sets : string list option }
+    selected_sets : string list option;
+    stabilize_gc : bool }
 
 type error =
   | Missing_file of file

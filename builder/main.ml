@@ -91,6 +91,7 @@ module Arg_opt = struct
   let set_quota = Arg.Float (fun v -> time_quota := Some v)
   let set_cost c = Arg.Unit (fun () -> maximal_cost := Some c)
   let set_different_values i = different_values := Some i
+  let stabilize_gc = ref false
 
   let run_config_arg =
     [ "--time-quota", set_quota, "t time_quota";
@@ -98,7 +99,8 @@ module Arg_opt = struct
       "--different-values", Arg.Int set_different_values, "n number of different values on which functions are evaluated";
       "-n", Arg.Int set_different_values, " alias of --different-values";
       "--long", set_cost Long, " allow running long test";
-      "--longer", set_cost Longer, " allow running longer test" ]
+      "--longer", set_cost Longer, " allow running longer test";
+      "--stabilize-gc", Arg.Set stabilize_gc, " stabilize gc between runs"; ]
 
 
   let output_dir = ref None
@@ -112,7 +114,8 @@ module Arg_opt = struct
     { maximal_cost = !maximal_cost;
       time_quota = !time_quota;
       different_values = !different_values;
-      selected_sets }
+      selected_sets;
+      stabilize_gc = !stabilize_gc; }
 
   let bin_dir = ref None
   let bin_dir_arg = ["--bin-dir", set_string bin_dir, "p path to ocaml binary directory"]
