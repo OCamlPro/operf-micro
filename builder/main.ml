@@ -193,7 +193,7 @@ let init_subcommand () =
   (fun () ->
      let name = get_opt !name
          (fun () -> raise (Error (Mandatory_option "name")))
-     in
+    in
      do_init name !Arg_opt.extra_dir !Arg_opt.bin_dir)
 
 let do_clean () =
@@ -259,7 +259,7 @@ let print_result_files ppf r =
     ppf "@[<v 2>%s@ %a@]" r.res_name
     ptr r.res
 
-let load_result_list () =
+let load_result_list selected_run =
   let timestamped_result dir =
     let sr_files =
       Array.to_list (Sys.readdir dir)
@@ -281,7 +281,17 @@ let load_result_list () =
   | Err s -> raise (Error (No_save_directory s))
   | Ok home_dir ->
      let bench_named_dirs = Command.subdirectories home_dir in
-     List.map res bench_named_dirs
+     let all_res = List.map res bench_named_dirs in
+     if selected_run <> []
+     then 
+       let res_list = 
+         List.filter (fun run -> List.mem run.res_name selected_run) all_res in
+       if List.length res_list <> List.length selected_run
+       then List.iter (fun run_name -> 
+         if not (List.exists (fun res -> res.res_name = run_name) res_list)
+         then Printf.printf "can't find %s run\n%!" run_name) selected_run;
+       res_list
+     else all_res
 
 let do_results selected_names selected_sets =
   let is_selected_set s =
@@ -291,41 +301,38 @@ let do_results selected_names selected_sets =
   in
   match selected_names with
   | [] ->
-    let l = load_result_list () in
+    let l = load_result_list [] in
     List.iter (fun v -> Format.printf "%a@." print_result_files v) l
   | selected ->
-    let l = load_result_list () in
+    let l = load_result_list selected in
     List.iter
-      (fun v ->
-         if List.mem v.res_name selected
-         then
-           (match last_timestamped v with
-            | None -> ()
-            | Some res ->
-              let results = Measurements.load_results Measurements.Cycles res.sr_files in
-              Format.printf "@[<v 2>%s %s:@ " v.res_name res.sr_timestamp;
-              StringMap.iter
-                (fun bench_name res_map ->
-                   if is_selected_set bench_name
-                   then begin
-                     Format.printf "@[<v 2>%s:@ " bench_name;
-                     StringMap.iter
-                       (fun name -> function
-                          | Measurements.Simple result ->
-                            Format.printf "%s: %.2f@ "
-                              name result.Measurements.mean_value
-                          | Measurements.Group results ->
-                            Format.printf "@[<v 2>group %s@ " name;
-                            List.iter (fun (fun_name, result) ->
-                              Format.printf "%s: %.2f@ "
-                                fun_name result.Measurements.mean_value)
-                              results;
-                            Format.printf "@]@ ")
-                       res_map;
-                     Format.printf "@]@ "
-                   end)
-                results;
-              Format.printf "@]@ "))
+      (fun v -> match last_timestamped v with
+         | None -> ()
+         | Some res ->
+           let results = Measurements.load_results Measurements.Cycles res.sr_files in
+           Format.printf "@[<v 2>%s %s:@ " v.res_name res.sr_timestamp;
+           StringMap.iter
+             (fun bench_name res_map ->
+                if is_selected_set bench_name
+                then begin
+                  Format.printf "@[<v 2>%s:@ " bench_name;
+                  StringMap.iter
+                    (fun name -> function
+                       | Measurements.Simple result ->
+                         Format.printf "%s: %.2f@ "
+                           name result.Measurements.mean_value
+                       | Measurements.Group results ->
+                         Format.printf "@[<v 2>group %s@ " name;
+                         List.iter (fun (fun_name, result) ->
+                           Format.printf "%s: %.2f@ "
+                             fun_name result.Measurements.mean_value)
+                           results;
+                         Format.printf "@]@ ")
+                    res_map;
+                  Format.printf "@]@ "
+                end)
+             results;
+           Format.printf "@]@ ")
       l;
     Format.printf "@."
 
@@ -337,7 +344,7 @@ let results_subcommand () =
    if no name provided, list recorded results, otherwise print last results",
   (fun () -> do_results !l (Arg_opt.get_selected_sets ()))
 
-let load_all_results () =
+let load_all_results selected_run =
   let aux map v =
     match last_timestamped v with
     | None -> map
@@ -345,7 +352,7 @@ let load_all_results () =
       let results = Measurements.load_results Measurements.Cycles res.sr_files in
       StringMap.add v.res_name results map
   in
-  List.fold_left aux StringMap.empty (load_result_list ())
+  List.fold_left aux StringMap.empty (load_result_list selected_run)
 
 let cut_pad width s =
   let len = String.length s in
@@ -383,17 +390,20 @@ let print_compared_results ppf width name_width comp =
   StringMap.iter (print ppf) comp
 
 let compare_subcommand () =
+  let selected_run = ref [] in
   let compare () =
-    let result_map = load_all_results () in
-    let _reference, comp = Measurements.compare_measurements result_map in
-    let ppf = Format.std_formatter in
-    let name_width = 10 in
-    let width = 7 in
-    print_compared_results ppf width name_width comp
+    let result_map = load_all_results !selected_run in
+    if (StringMap.cardinal result_map <> 0)
+    then 
+      let _reference, comp = Measurements.compare_measurements result_map in
+      let ppf = Format.std_formatter in
+      let name_width = 10 in
+      let width = 7 in
+      print_compared_results ppf width name_width comp
   in
   [],
-  (fun _s -> ()),
-  "\n\
+  (fun s -> selected_run := s :: !selected_run),
+  "[<names>]\n\
    comparisons between runs",
   compare
 
