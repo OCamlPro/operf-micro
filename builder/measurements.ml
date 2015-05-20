@@ -340,6 +340,8 @@ let read_measurement ~contents:text : measurements list =
 
 type results_mat = (int * float) array
 
+(* returns [a, b] such that [f(x) = a*x + b] minimize
+   the distance between [sum(fun (x -> (f(x) - v(x))^2)] *)
 let affine_adjustment (r:results_mat) =
   let len = float (Array.length r) in
   let mean_x =
@@ -371,6 +373,22 @@ let affine_adjustment (r:results_mat) =
   let b = mean_y -. a *. mean_x in
   a, b
 
+let sum a = Array.fold_left (+.) 0. a
+
+let standard_error ~a ~b (r:results_mat) =
+  let estimate x = a *. float x +. b in
+  let dy (x, y) =
+    let d = y -. estimate x in
+    d *. d
+  in
+  let sum_dy = sum (Array.map dy r) in
+  let mean_x =
+    sum (Array.map (fun (x, _) -> float x) r) /. float (Array.length r)
+  in
+  let dx (x,_) = let d = float x -. mean_x in d *. d in
+  sqrt (sum_dy /. float (Array.length r - 2)) /.
+  sqrt (sum (Array.map dx r))
+
 type column =
   | Cycles
   | Nanos
@@ -399,7 +417,8 @@ type result =
     { mean_value : float;
       constant : float;
       max_value : int * float;
-      min_value : int * float }
+      min_value : int * float;
+      standard_error : float }
 
 let analyse_measurement c ml =
   let a = Array.of_list (List.map (result_column c) ml) in
@@ -420,10 +439,12 @@ let analyse_measurement c ml =
       else (row,value))
       (0, min_float) a
   in
+  let standard_error = standard_error ~a:mean_value ~b:constant a in
   { mean_value;
     constant;
     min_value;
-    max_value }
+    max_value;
+    standard_error }
 
 let analyse_measurements c (rm:recorded_measurements) =
   List.fold_left

@@ -57,7 +57,8 @@ type result =
     { mean_value : float;
       constant : float;
       max_value : int * float;
-      min_value : int * float }
+      min_value : int * float;
+      standard_error : float }
 
 val analyse_measurement : column -> measurement_sample list -> result
 
