@@ -20,11 +20,28 @@ let map_fold n =
   |> Sequence.map (fun x -> n - x)
   |> Sequence.fold (+) 0
 
+let map_fold_base n =
+  let sum = ref 0 in
+  for i = 1 to n do
+    let x = n - i in
+    sum := !sum + x
+  done;
+  !sum
+
 let flat_map_fold n =
   Sequence.range 1 n
   |> Sequence.flat_map (fun x -> Sequence.range x n)
   |> Sequence.filter (fun x -> x mod 10 <> 0)
   |> Sequence.fold (+) 0
+
+let flat_map_fold_base n =
+  let sum = ref 0 in
+  for i = 1 to n do
+    for j = i to n do
+      if j mod 10 <> 0 then sum := !sum + j
+    done
+  done;
+  !sum
 
 (* benchs *)
 
@@ -34,16 +51,25 @@ let id x = x
 
 (* no validation *)
 let valid_trivial _n _res = M.Ok
+let same_as f n res = if f n = res then M.Ok else M.Error "do not match"
 
 let bench_map_fold =
-  "map_fold", M.Int (map_fold, id, valid_trivial,
-                     [M.Range (100, 100), M.Short
-                     ;M.Range (100_000, 100_000), M.Short])
+  "map_fold", M.Int_group (
+    ["sequence", map_fold; "baseline", map_fold_base],
+    id,
+    same_as map_fold_base,
+    [M.Range (10, 100), M.Short
+    ;M.Range (100_000, 1_000_000), M.Short]
+)
 
 let bench_flat_map_fold =
-  "flat_map_fold", M.Int (flat_map_fold, id, valid_trivial,
-                     [M.Range (100, 100), M.Short
-                     ;M.Range (100_000, 100_000), M.Short])
+  "flat_map_fold", M.Int_group (
+  ["sequence", flat_map_fold; "baseline", flat_map_fold_base],
+  id,
+  same_as flat_map_fold_base,
+  [M.Range (10, 100), M.Short
+  ;M.Range (100_000, 1_000_000), M.Short]
+)
 
 let () =
   M.add [ bench_map_fold
