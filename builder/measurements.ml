@@ -63,7 +63,7 @@ let measurement_file context bench measurements =
         |> f "name" (String func)
         |> f "properties" (Dict (List.map (fun (k, v) -> k, String v) params))
       in
-      Dict dict
+     Dict dict
     in
     List.map aux measurements in
   let dict =
@@ -426,15 +426,16 @@ let analyse_measurement c ml =
   let min_value =
     Array.fold_left (fun (row_min, val_min) (row,value) ->
       let value = (value -. constant) /. float row in
-      if val_min < value
+      if val_min < value || value <= 0.
       then (row_min, val_min)
       else (row,value))
       (0, max_float) a
   in
+  let correct_float f = classify_float f = FP_normal in
   let max_value =
     Array.fold_left (fun (row_max, val_max) (row,value) ->
       let value = (value -. constant) /. float row in
-      if val_max > value
+      if val_max > value || not (correct_float value)
       then (row_max, val_max)
       else (row,value))
       (0, min_float) a
