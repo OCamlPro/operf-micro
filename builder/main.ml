@@ -123,6 +123,9 @@ module Arg_opt = struct
   let extra_dir = ref []
   let extra_dir_arg = ["-I", add_string extra_dir, "p path to extra benchmarks directory"]
 
+  let more_info = ref false
+  let more_info_arg = ["--more", Arg.Set more_info, "print min,max and standard error infos"]
+
   let selected_sets = ref []
   let add_selected_set = Arg.String (fun s -> selected_sets := s :: !selected_sets)
   let selected_sets_arg = ["--selected", add_selected_set, "s run benchmark s. All are run if none is specified";
@@ -293,7 +296,7 @@ let load_result_list selected_run =
        res_list
      else all_res
 
-let do_results selected_names selected_sets =
+let do_results selected_names selected_sets more_info =
   let is_selected_set s =
     match selected_sets with
     | None -> true
@@ -319,13 +322,27 @@ let do_results selected_names selected_sets =
                   StringMap.iter
                     (fun name -> function
                        | Measurements.Simple result ->
-                         Format.printf "%s: %.2f@ "
-                           name result.Measurements.mean_value
+                         if more_info
+                         then Format.printf "%s: %.2f min:%.2f max:%.2f standar_error:%.2f@ "
+                             name
+                             result.Measurements.mean_value
+                             (snd result.Measurements.min_value)
+                             (snd result.Measurements.max_value)
+                             result.Measurements.standard_error
+                         else Format.printf "%s: %.2f@ "
+                             name result.Measurements.mean_value
                        | Measurements.Group results ->
                          Format.printf "@[<v 2>group %s@ " name;
                          List.iter (fun (fun_name, result) ->
-                           Format.printf "%s: %.2f@ "
-                             fun_name result.Measurements.mean_value)
+                           if more_info
+                           then Format.printf "%s: %.2f min:%.2f max:%.2f standar_error:%.2f@ "
+                             fun_name
+                             result.Measurements.mean_value
+                             (snd result.Measurements.min_value)
+                             (snd result.Measurements.max_value)
+                             result.Measurements.standard_error
+                           else Format.printf "%s: %.2f@ "
+                               fun_name result.Measurements.mean_value)
                            results;
                          Format.printf "@]@ ")
                     res_map;
@@ -338,11 +355,12 @@ let do_results selected_names selected_sets =
 
 let results_subcommand () =
   let l = ref [] in
-  Arg_opt.selected_sets_arg,
+  Arg_opt.selected_sets_arg @
+  Arg_opt.more_info_arg,
   (fun s -> l := s :: !l),
   "[<names>]\n\
    if no name provided, list recorded results, otherwise print last results",
-  (fun () -> do_results !l (Arg_opt.get_selected_sets ()))
+  (fun () -> do_results !l (Arg_opt.get_selected_sets ()) !Arg_opt.more_info)
 
 let load_all_results selected_run =
   let aux map v =
@@ -401,6 +419,7 @@ let print_compared_results ppf width name_width comp =
     comp;
   Format.fprintf ppf "@.";
   let benchs = sort_by_bench comp in
+  (* print_all_bench benchs *)
     StringMap.iter (fun bench_name set_runs ->
       Format.pp_print_string ppf (cut_pad width bench_name);
       Format.pp_print_string ppf "|";
@@ -432,7 +451,7 @@ let doall_subcommand () =
     do_init name extra_dir bin_dir;
     do_build compile_arg;
     do_run output_dir rc;
-    do_results [name] selected_sets
+    do_results [name] selected_sets !Arg_opt.more_info
   in
   let args = ref [] in
   Arg_opt.bin_dir_arg @
@@ -440,6 +459,7 @@ let doall_subcommand () =
   Arg_opt.run_config_arg @
   Arg_opt.output_dir_arg @
   Arg_opt.selected_sets_arg @
+  Arg_opt.more_info_arg @
   compiler_arg_opt,
   (fun s -> args := s :: !args),
   "[<args>] <name>\n\
