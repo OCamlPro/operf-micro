@@ -360,34 +360,53 @@ let cut_pad width s =
   then String.sub s 0 width
   else s ^ (String.make (width - len) ' ')
 
+let sort_by_bench comp =
+  StringMap.fold (fun run_name set_bench res ->
+    StringMap.fold (fun _n bench res ->
+      StringMap.fold (fun name value res ->
+        match value with
+        | Measurements.Simple v ->
+          begin
+            try
+              let set = StringMap.find name res in
+              let map = StringMap.add run_name v set in
+              StringMap.add name map res
+            with Not_found -> StringMap.add name (StringMap.singleton run_name v) res
+          end
+        | Measurements.Group l ->
+          begin
+            List.fold_left (fun res (name, v) ->
+              try
+                let set = StringMap.find name res in
+                let map = StringMap.add run_name v set in
+                StringMap.add name map res
+              with Not_found -> StringMap.add name (StringMap.singleton run_name v) res) res l
+          end
+      ) bench res
+    ) set_bench res
+  ) comp StringMap.empty
+
 let print_compared_results ppf width name_width comp =
-  let print ppf result_name map =
-    Format.pp_print_string ppf (cut_pad name_width result_name);
-    let print ppf _set_name map =
-      let print ppf value =
-        (match value with
-         | None -> Format.pp_print_string ppf (String.make width ' ')
-         | Some ratio -> Format.fprintf ppf "%*.2f" width ratio);
-        Format.pp_print_string ppf " "
-      in
-      let print_group ppf _function_name = function
-        | Measurements.Simple value -> print ppf value
-        | Measurements.Group l -> List.iter (fun (_,value) -> print ppf value) l
-      in
-      StringMap.iter (print_group ppf) map in
-    StringMap.iter (print ppf) map;
-    Format.fprintf ppf "@."
-  in
-  Format.pp_print_string ppf (String.make name_width ' ');
+  let print ppf value =
+    (match value with
+     | None -> Format.pp_print_string ppf (String.make name_width ' ')
+     | Some ratio -> Format.fprintf ppf "%.2f" ratio;
+       Format.pp_print_string ppf (String.make (name_width - 4) ' '));
+    Format.pp_print_string ppf "|" in
+  Format.pp_print_string ppf (String.make (width + 1) ' ');
   StringMap.iter
-    (fun _set_name sub -> StringMap.iter
-        (fun sub _ ->
-           Format.pp_print_string ppf (cut_pad width sub);
-           Format.pp_print_string ppf " ")
-        sub)
-    (snd (StringMap.choose comp));
+    (fun run_name _ ->
+       Format.pp_print_string ppf (cut_pad name_width run_name);
+       Format.pp_print_string ppf " ")
+    comp;
   Format.fprintf ppf "@.";
-  StringMap.iter (print ppf) comp
+  let benchs = sort_by_bench comp in
+    StringMap.iter (fun bench_name set_runs ->
+      Format.pp_print_string ppf (cut_pad width bench_name);
+      Format.pp_print_string ppf "|";
+      StringMap.iter (fun _run_name value -> print ppf value) set_runs;
+      Format.fprintf ppf "@."
+  ) benchs
 
 let compare_subcommand () =
   let selected_run = ref [] in
@@ -397,8 +416,8 @@ let compare_subcommand () =
     then 
       let _reference, comp = Measurements.compare_measurements result_map in
       let ppf = Format.std_formatter in
-      let name_width = 10 in
-      let width = 7 in
+      let name_width = 8 in
+      let width = 13 in
       print_compared_results ppf width name_width comp
   in
   [],
