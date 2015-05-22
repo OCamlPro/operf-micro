@@ -68,4 +68,4 @@ val load_results : column -> Command.file list -> result group StringMap.t Strin
 
 val compare_measurements :
   ?reference:string -> result group StringMap.t StringMap.t StringMap.t ->
-  string * float option group StringMap.t StringMap.t StringMap.t
+  string * (float * float) option group StringMap.t StringMap.t StringMap.t

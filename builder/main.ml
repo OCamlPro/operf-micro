@@ -124,7 +124,10 @@ module Arg_opt = struct
   let extra_dir_arg = ["-I", add_string extra_dir, "p path to extra benchmarks directory"]
 
   let more_info = ref false
-  let more_info_arg = ["--more", Arg.Set more_info, "print min,max and standard error infos"]
+  let more_info_arg = ["--more", Arg.Set more_info, " print min,max and standard error infos"]
+
+  let standard_error = ref false
+  let standard_error_arg = ["--std-error", Arg.Set standard_error, " print the standard error for each bench"]
 
   let selected_sets = ref []
   let add_selected_set = Arg.String (fun s -> selected_sets := s :: !selected_sets)
@@ -323,7 +326,7 @@ let do_results selected_names selected_sets more_info =
                     (fun name -> function
                        | Measurements.Simple result ->
                          if more_info
-                         then Format.printf "%s: %.2f min:%.2f max:%.2f standar_error:%.2f@ "
+                         then Format.printf "%s: %.2f min:%.2F max:%.2F standar_error:%.2F@ "
                              name
                              result.Measurements.mean_value
                              (snd result.Measurements.min_value)
@@ -335,7 +338,7 @@ let do_results selected_names selected_sets more_info =
                          Format.printf "@[<v 2>group %s@ " name;
                          List.iter (fun (fun_name, result) ->
                            if more_info
-                           then Format.printf "%s: %.2f min:%.2f max:%.2f standar_error:%.2f@ "
+                           then Format.printf "%s: %.2f min:%.2F max:%.2F standar_error:%.2F@ "
                              fun_name
                              result.Measurements.mean_value
                              (snd result.Measurements.min_value)
@@ -404,13 +407,21 @@ let sort_by_bench comp =
     ) set_bench res
   ) comp StringMap.empty
 
-let print_compared_results ppf width name_width comp =
+let print_compared_results ppf width name_width std_err_flag comp =
   let print ppf value =
     (match value with
      | None -> Format.pp_print_string ppf (String.make name_width ' ')
-     | Some ratio -> Format.fprintf ppf "%.2f" ratio;
-       Format.pp_print_string ppf (String.make (name_width - 4) ' '));
-    Format.pp_print_string ppf "|" in
+     | Some (ratio, std_err) ->
+       if std_err_flag
+       then
+         let std_err_str = Format.sprintf "(%.2F)" std_err in
+         (Format.fprintf ppf "%.2f%s" ratio std_err_str;
+          Format.pp_print_string
+            ppf
+            (String.make (name_width - (String.length std_err_str) - 4) ' '))
+       else (Format.fprintf ppf "%.2f" ratio;
+             Format.pp_print_string ppf (String.make (name_width - 4) ' ')));
+    Format.pp_print_string ppf " " in
   Format.pp_print_string ppf (String.make (width + 1) ' ');
   StringMap.iter
     (fun run_name _ ->
@@ -419,12 +430,11 @@ let print_compared_results ppf width name_width comp =
     comp;
   Format.fprintf ppf "@.";
   let benchs = sort_by_bench comp in
-  (* print_all_bench benchs *)
-    StringMap.iter (fun bench_name set_runs ->
-      Format.pp_print_string ppf (cut_pad width bench_name);
-      Format.pp_print_string ppf "|";
-      StringMap.iter (fun _run_name value -> print ppf value) set_runs;
-      Format.fprintf ppf "@."
+  StringMap.iter (fun bench_name set_runs ->
+    Format.pp_print_string ppf (cut_pad width bench_name);
+    Format.pp_print_string ppf " ";
+    StringMap.iter (fun _run_name value -> print ppf value) set_runs;
+    Format.fprintf ppf "@."
   ) benchs
 
 let compare_subcommand () =
@@ -435,11 +445,11 @@ let compare_subcommand () =
     then 
       let _reference, comp = Measurements.compare_measurements result_map in
       let ppf = Format.std_formatter in
-      let name_width = 8 in
+      let name_width = if !Arg_opt.standard_error then 16 else 8 in
       let width = 13 in
-      print_compared_results ppf width name_width comp
+      print_compared_results ppf width name_width !Arg_opt.standard_error comp
   in
-  [],
+  Arg_opt.standard_error_arg,
   (fun s -> selected_run := s :: !selected_run),
   "[<names>]\n\
    comparisons between runs",

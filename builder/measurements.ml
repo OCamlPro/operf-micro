@@ -483,7 +483,7 @@ let compare_measurements ?reference results =
     match reference, value with
     | None, _ -> None
     | Some (Simple reference), Some (Simple result) ->
-      Some (Simple (Some (result.mean_value /. reference.mean_value)))
+      Some (Simple (Some ((result.mean_value /. reference.mean_value), result.standard_error)))
     | Some (Group reference), Some (Group result) ->
       let reference = stringmap_of_list reference in
       let result = stringmap_of_list result in
@@ -492,7 +492,7 @@ let compare_measurements ?reference results =
         | None, _ -> None
         | Some _, None -> Some None
         | Some reference, Some result ->
-          Some (Some (result.mean_value /. reference.mean_value))
+          Some (Some ((result.mean_value /. reference.mean_value), result.standard_error))
       in
       let map = StringMap.merge aux reference result in
       Some (Group (StringMap.bindings map))
