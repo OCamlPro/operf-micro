@@ -63,7 +63,7 @@ let measurement_file context bench measurements =
         |> f "name" (String func)
         |> f "properties" (Dict (List.map (fun (k, v) -> k, String v) params))
       in
-      Dict dict
+     Dict dict
     in
     List.map aux measurements in
   let dict =
@@ -426,15 +426,16 @@ let analyse_measurement c ml =
   let min_value =
     Array.fold_left (fun (row_min, val_min) (row,value) ->
       let value = (value -. constant) /. float row in
-      if val_min < value
+      if val_min < value || value <= 0.
       then (row_min, val_min)
       else (row,value))
       (0, max_float) a
   in
+  let correct_float f = classify_float f = FP_normal in
   let max_value =
     Array.fold_left (fun (row_max, val_max) (row,value) ->
       let value = (value -. constant) /. float row in
-      if val_max > value
+      if val_max > value || not (correct_float value)
       then (row_max, val_max)
       else (row,value))
       (0, min_float) a
@@ -482,7 +483,7 @@ let compare_measurements ?reference results =
     match reference, value with
     | None, _ -> None
     | Some (Simple reference), Some (Simple result) ->
-      Some (Simple (Some (result.mean_value /. reference.mean_value)))
+      Some (Simple (Some ((result.mean_value /. reference.mean_value), result.standard_error)))
     | Some (Group reference), Some (Group result) ->
       let reference = stringmap_of_list reference in
       let result = stringmap_of_list result in
@@ -491,7 +492,7 @@ let compare_measurements ?reference results =
         | None, _ -> None
         | Some _, None -> Some None
         | Some reference, Some result ->
-          Some (Some (result.mean_value /. reference.mean_value))
+          Some (Some ((result.mean_value /. reference.mean_value), result.standard_error))
       in
       let map = StringMap.merge aux reference result in
       Some (Group (StringMap.bindings map))

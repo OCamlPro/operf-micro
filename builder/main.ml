@@ -123,6 +123,12 @@ module Arg_opt = struct
   let extra_dir = ref []
   let extra_dir_arg = ["-I", add_string extra_dir, "p path to extra benchmarks directory"]
 
+  let more_info = ref false
+  let more_info_arg = ["--more", Arg.Set more_info, " print min,max and standard error infos"]
+
+  let standard_error = ref false
+  let standard_error_arg = ["--std-error", Arg.Set standard_error, " print the standard error for each bench"]
+
   let selected_sets = ref []
   let add_selected_set = Arg.String (fun s -> selected_sets := s :: !selected_sets)
   let selected_sets_arg = ["--selected", add_selected_set, "s run benchmark s. All are run if none is specified";
@@ -193,7 +199,7 @@ let init_subcommand () =
   (fun () ->
      let name = get_opt !name
          (fun () -> raise (Error (Mandatory_option "name")))
-     in
+    in
      do_init name !Arg_opt.extra_dir !Arg_opt.bin_dir)
 
 let do_clean () =
@@ -259,7 +265,7 @@ let print_result_files ppf r =
     ppf "@[<v 2>%s@ %a@]" r.res_name
     ptr r.res
 
-let load_result_list () =
+let load_result_list selected_run =
   let timestamped_result dir =
     let sr_files =
       Array.to_list (Sys.readdir dir)
@@ -281,9 +287,19 @@ let load_result_list () =
   | Err s -> raise (Error (No_save_directory s))
   | Ok home_dir ->
      let bench_named_dirs = Command.subdirectories home_dir in
-     List.map res bench_named_dirs
+     let all_res = List.map res bench_named_dirs in
+     if selected_run <> []
+     then 
+       let res_list = 
+         List.filter (fun run -> List.mem run.res_name selected_run) all_res in
+       if List.length res_list <> List.length selected_run
+       then List.iter (fun run_name -> 
+         if not (List.exists (fun res -> res.res_name = run_name) res_list)
+         then Printf.printf "can't find %s run\n%!" run_name) selected_run;
+       res_list
+     else all_res
 
-let do_results selected_names selected_sets =
+let do_results selected_names selected_sets more_info =
   let is_selected_set s =
     match selected_sets with
     | None -> true
@@ -291,53 +307,65 @@ let do_results selected_names selected_sets =
   in
   match selected_names with
   | [] ->
-    let l = load_result_list () in
+    let l = load_result_list [] in
     List.iter (fun v -> Format.printf "%a@." print_result_files v) l
   | selected ->
-    let l = load_result_list () in
+    let l = load_result_list selected in
     List.iter
-      (fun v ->
-         if List.mem v.res_name selected
-         then
-           (match last_timestamped v with
-            | None -> ()
-            | Some res ->
-              let results = Measurements.load_results Measurements.Cycles res.sr_files in
-              Format.printf "@[<v 2>%s %s:@ " v.res_name res.sr_timestamp;
-              StringMap.iter
-                (fun bench_name res_map ->
-                   if is_selected_set bench_name
-                   then begin
-                     Format.printf "@[<v 2>%s:@ " bench_name;
-                     StringMap.iter
-                       (fun name -> function
-                          | Measurements.Simple result ->
-                            Format.printf "%s: %.2f@ "
-                              name result.Measurements.mean_value
-                          | Measurements.Group results ->
-                            Format.printf "@[<v 2>group %s@ " name;
-                            List.iter (fun (fun_name, result) ->
-                              Format.printf "%s: %.2f@ "
-                                fun_name result.Measurements.mean_value)
-                              results;
-                            Format.printf "@]@ ")
-                       res_map;
-                     Format.printf "@]@ "
-                   end)
-                results;
-              Format.printf "@]@ "))
+      (fun v -> match last_timestamped v with
+         | None -> ()
+         | Some res ->
+           let results = Measurements.load_results Measurements.Cycles res.sr_files in
+           Format.printf "@[<v 2>%s %s:@ " v.res_name res.sr_timestamp;
+           StringMap.iter
+             (fun bench_name res_map ->
+                if is_selected_set bench_name
+                then begin
+                  Format.printf "@[<v 2>%s:@ " bench_name;
+                  StringMap.iter
+                    (fun name -> function
+                       | Measurements.Simple result ->
+                         if more_info
+                         then Format.printf "%s: %.2f min:%.2F max:%.2F standar_error:%.2F@ "
+                             name
+                             result.Measurements.mean_value
+                             (snd result.Measurements.min_value)
+                             (snd result.Measurements.max_value)
+                             result.Measurements.standard_error
+                         else Format.printf "%s: %.2f@ "
+                             name result.Measurements.mean_value
+                       | Measurements.Group results ->
+                         Format.printf "@[<v 2>group %s@ " name;
+                         List.iter (fun (fun_name, result) ->
+                           if more_info
+                           then Format.printf "%s: %.2f min:%.2F max:%.2F standar_error:%.2F@ "
+                             fun_name
+                             result.Measurements.mean_value
+                             (snd result.Measurements.min_value)
+                             (snd result.Measurements.max_value)
+                             result.Measurements.standard_error
+                           else Format.printf "%s: %.2f@ "
+                               fun_name result.Measurements.mean_value)
+                           results;
+                         Format.printf "@]@ ")
+                    res_map;
+                  Format.printf "@]@ "
+                end)
+             results;
+           Format.printf "@]@ ")
       l;
     Format.printf "@."
 
 let results_subcommand () =
   let l = ref [] in
-  Arg_opt.selected_sets_arg,
+  Arg_opt.selected_sets_arg @
+  Arg_opt.more_info_arg,
   (fun s -> l := s :: !l),
   "[<names>]\n\
    if no name provided, list recorded results, otherwise print last results",
-  (fun () -> do_results !l (Arg_opt.get_selected_sets ()))
+  (fun () -> do_results !l (Arg_opt.get_selected_sets ()) !Arg_opt.more_info)
 
-let load_all_results () =
+let load_all_results selected_run =
   let aux map v =
     match last_timestamped v with
     | None -> map
@@ -345,7 +373,7 @@ let load_all_results () =
       let results = Measurements.load_results Measurements.Cycles res.sr_files in
       StringMap.add v.res_name results map
   in
-  List.fold_left aux StringMap.empty (load_result_list ())
+  List.fold_left aux StringMap.empty (load_result_list selected_run)
 
 let cut_pad width s =
   let len = String.length s in
@@ -353,47 +381,77 @@ let cut_pad width s =
   then String.sub s 0 width
   else s ^ (String.make (width - len) ' ')
 
-let print_compared_results ppf width name_width comp =
-  let print ppf result_name map =
-    Format.pp_print_string ppf (cut_pad name_width result_name);
-    let print ppf _set_name map =
-      let print ppf value =
-        (match value with
-         | None -> Format.pp_print_string ppf (String.make width ' ')
-         | Some ratio -> Format.fprintf ppf "%*.2f" width ratio);
-        Format.pp_print_string ppf " "
-      in
-      let print_group ppf _function_name = function
-        | Measurements.Simple value -> print ppf value
-        | Measurements.Group l -> List.iter (fun (_,value) -> print ppf value) l
-      in
-      StringMap.iter (print_group ppf) map in
-    StringMap.iter (print ppf) map;
-    Format.fprintf ppf "@."
-  in
-  Format.pp_print_string ppf (String.make name_width ' ');
+let sort_by_bench comp =
+  StringMap.fold (fun run_name set_bench res ->
+    StringMap.fold (fun _n bench res ->
+      StringMap.fold (fun name value res ->
+        match value with
+        | Measurements.Simple v ->
+          begin
+            try
+              let set = StringMap.find name res in
+              let map = StringMap.add run_name v set in
+              StringMap.add name map res
+            with Not_found -> StringMap.add name (StringMap.singleton run_name v) res
+          end
+        | Measurements.Group l ->
+          begin
+            List.fold_left (fun res (name, v) ->
+              try
+                let set = StringMap.find name res in
+                let map = StringMap.add run_name v set in
+                StringMap.add name map res
+              with Not_found -> StringMap.add name (StringMap.singleton run_name v) res) res l
+          end
+      ) bench res
+    ) set_bench res
+  ) comp StringMap.empty
+
+let print_compared_results ppf width name_width std_err_flag comp =
+  let print ppf value =
+    (match value with
+     | None -> Format.pp_print_string ppf (String.make name_width ' ')
+     | Some (ratio, std_err) ->
+       if std_err_flag
+       then
+         let std_err_str = Format.sprintf "(%.2F)" std_err in
+         (Format.fprintf ppf "%.2f%s" ratio std_err_str;
+          Format.pp_print_string
+            ppf
+            (String.make (name_width - (String.length std_err_str) - 4) ' '))
+       else (Format.fprintf ppf "%.2f" ratio;
+             Format.pp_print_string ppf (String.make (name_width - 4) ' ')));
+    Format.pp_print_string ppf " " in
+  Format.pp_print_string ppf (String.make (width + 1) ' ');
   StringMap.iter
-    (fun _set_name sub -> StringMap.iter
-        (fun sub _ ->
-           Format.pp_print_string ppf (cut_pad width sub);
-           Format.pp_print_string ppf " ")
-        sub)
-    (snd (StringMap.choose comp));
+    (fun run_name _ ->
+       Format.pp_print_string ppf (cut_pad name_width run_name);
+       Format.pp_print_string ppf " ")
+    comp;
   Format.fprintf ppf "@.";
-  StringMap.iter (print ppf) comp
+  let benchs = sort_by_bench comp in
+  StringMap.iter (fun bench_name set_runs ->
+    Format.pp_print_string ppf (cut_pad width bench_name);
+    Format.pp_print_string ppf " ";
+    StringMap.iter (fun _run_name value -> print ppf value) set_runs;
+    Format.fprintf ppf "@."
+  ) benchs
 
 let compare_subcommand () =
+  let selected_run = ref [] in
   let compare () =
-    let result_map = load_all_results () in
-    let _reference, comp = Measurements.compare_measurements result_map in
-    let ppf = Format.std_formatter in
-    let name_width = 10 in
-    let width = 7 in
-    print_compared_results ppf width name_width comp
+    let result_map = load_all_results !selected_run in
+    if (StringMap.cardinal result_map <> 0)
+    then 
+      let _reference, comp = Measurements.compare_measurements result_map in
+      let ppf = Format.std_formatter in
+      let name_width = if !Arg_opt.standard_error then 16 else 8 in
+      let width = 13 in
+      print_compared_results ppf width name_width !Arg_opt.standard_error comp
   in
-  [],
-  (fun _s -> ()),
-  "\n\
+  Arg_opt.standard_error_arg,
+  (fun s -> selected_run := s :: !selected_run),
+  "[<names>]\n\
    comparisons between runs",
   compare
 
@@ -403,7 +461,7 @@ let doall_subcommand () =
     do_init name extra_dir bin_dir;
     do_build compile_arg;
     do_run output_dir rc;
-    do_results [name] selected_sets
+    do_results [name] selected_sets !Arg_opt.more_info
   in
   let args = ref [] in
   Arg_opt.bin_dir_arg @
@@ -411,6 +469,7 @@ let doall_subcommand () =
   Arg_opt.run_config_arg @
   Arg_opt.output_dir_arg @
   Arg_opt.selected_sets_arg @
+  Arg_opt.more_info_arg @
   compiler_arg_opt,
   (fun s -> args := s :: !args),
   "[<args>] <name>\n\
