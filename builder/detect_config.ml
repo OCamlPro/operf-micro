@@ -142,6 +142,8 @@ let benchmarks_subdir path =
   Filename.concat (micro_subdir path) "benchmarks"
 let config_file_name path =
   Filename.concat (micro_subdir path) "config"
+let plot_subdir path =
+  Filename.concat (micro_subdir path) "plot"
 
 let contains_operf_root_directory path =
   Sys.is_directory path &&
@@ -298,6 +300,7 @@ let write_initialize root_dir extra_dir config ~with_default_benchmarks =
     (fun ppf ->
        Files.print ppf (config_to_file config);
        Format.pp_print_newline ppf ());
+  make_directory (plot_subdir root_dir);
   if with_default_benchmarks
   then copy_benchmark_files data_directory root_dir
   else make_directory (benchmarks_subdir root_dir);

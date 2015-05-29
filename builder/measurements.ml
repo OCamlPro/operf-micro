@@ -421,7 +421,8 @@ type result =
       standard_error : float }
 
 let analyse_measurement c ml =
-  let a = Array.of_list (List.map (result_column c) ml) in
+  let data = List.map (result_column c) ml in
+  let a = Array.of_list data in
   let mean_value, constant = affine_adjustment a in
   let min_value =
     Array.fold_left (fun (row_min, val_min) (row,value) ->
@@ -441,13 +442,37 @@ let analyse_measurement c ml =
       (0, min_float) a
   in
   let standard_error = standard_error ~a:mean_value ~b:constant a in
-  { mean_value;
-    constant;
-    min_value;
-    max_value;
-    standard_error }
+  data, { mean_value;
+          constant;
+          min_value;
+          max_value;
+          standard_error }
 
 let analyse_measurements c (rm:recorded_measurements) =
+  List.fold_left
+    (fun map { name; list } ->
+       let elt =
+         match list with
+         | Simple list ->
+           let _, res = analyse_measurement c list in
+           Simple res
+         | Group functions ->
+           Group (List.map (fun (name, list) ->
+             let _, res = analyse_measurement c list in
+             name, res) functions)
+       in
+       StringMap.add name elt map)
+    StringMap.empty rm.run_list
+
+let load_results c files =
+  let aux map filename =
+    let name = Filename.chop_extension (Filename.basename filename) in
+    let file = read_measurement_file ~filename in
+    StringMap.add name (analyse_measurements c file) map
+  in
+  List.fold_left aux StringMap.empty files
+
+let get_measurements c (rm:recorded_measurements) =
   List.fold_left
     (fun map { name; list } ->
        let elt =
@@ -460,11 +485,11 @@ let analyse_measurements c (rm:recorded_measurements) =
        StringMap.add name elt map)
     StringMap.empty rm.run_list
 
-let load_results c files =
+let get_results c files =
   let aux map filename =
     let name = Filename.chop_extension (Filename.basename filename) in
     let file = read_measurement_file ~filename in
-    StringMap.add name (analyse_measurements c file) map
+    StringMap.add name (get_measurements c file) map
   in
   List.fold_left aux StringMap.empty files
 

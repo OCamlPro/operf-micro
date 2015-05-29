@@ -12,6 +12,8 @@ type command_part =
 
 type command = file * command_part list * directory option
 
+val command_to_string : command -> string
+
 val run_command : ?use_path:bool -> command -> string option
 (* returns stdout *)
 
