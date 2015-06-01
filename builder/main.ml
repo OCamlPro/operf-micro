@@ -479,63 +479,73 @@ let get_results selected_run =
   in
   List.fold_left aux StringMap.empty (load_result_list selected_run)
 
-let get_benchs_by_fun results selected_bench =
+let get_benchs_by_fun results selected_bench group_name =
+  let test_group group = function
+    | None -> true
+    | Some s -> s = group in
   StringMap.fold (fun run_name res acc ->
     StringMap.fold (fun bench_name res acc ->
       if selected_bench = bench_name
       then
         StringMap.fold (fun ssbench_name res acc ->
-          match res with
-          | Measurements.Simple res ->
-            begin
-              try
-                let set = StringMap.find ssbench_name acc in
-                StringMap.add ssbench_name (StringMap.add run_name res set) acc
-              with Not_found ->
-                StringMap.add ssbench_name (StringMap.singleton run_name res) acc
-            end
-          | Measurements.Group functions ->
-            List.fold_left (fun acc (fun_name, res) ->
-              let bench_name = Printf.sprintf "%s.%s" ssbench_name fun_name in
-              try
-                let set = StringMap.find bench_name acc in
-                StringMap.add bench_name (StringMap.add run_name res set) acc
-              with Not_found ->
-                StringMap.add bench_name (StringMap.singleton run_name res) acc
-            ) acc functions
+          if test_group ssbench_name group_name
+          then match res with
+            | Measurements.Simple res ->
+              begin
+                try
+                  let set = StringMap.find ssbench_name acc in
+                  StringMap.add ssbench_name (StringMap.add run_name res set) acc
+                with Not_found ->
+                  StringMap.add ssbench_name (StringMap.singleton run_name res) acc
+              end
+            | Measurements.Group functions ->
+              List.fold_left (fun acc (fun_name, res) ->
+                let bench_name = Printf.sprintf "%s.%s" ssbench_name fun_name in
+                try
+                  let set = StringMap.find bench_name acc in
+                  StringMap.add bench_name (StringMap.add run_name res set) acc
+                with Not_found ->
+                  StringMap.add bench_name (StringMap.singleton run_name res) acc
+              ) acc functions
+          else acc
         ) res acc
       else acc
     ) res acc
   ) results StringMap.empty
 
-let get_benchs_by_group results selected_bench =
+let get_benchs_by_group results selected_bench group_name =
+  let test_group group = function
+    | None -> true
+    | Some s -> s = group in
   StringMap.fold (fun run_name res acc ->
     StringMap.fold (fun bench_name res acc ->
       if selected_bench = bench_name
       then
         StringMap.fold (fun ssbench_name res acc ->
-          match res with
-          | Measurements.Simple res ->
-            begin
-              try
-                let set = StringMap.find ssbench_name acc in
-                StringMap.add ssbench_name
-                  (StringMap.add run_name (StringMap.singleton ssbench_name res) set) acc
-              with Not_found ->
-                StringMap.add ssbench_name
-                  (StringMap.singleton run_name (StringMap.singleton ssbench_name res)) acc
-            end
-          | Measurements.Group functions ->
-            begin
-              let group_set = List.fold_left (fun acc (fun_name, res) ->
-                StringMap.add fun_name res acc
-              ) StringMap.empty functions in
-              try
-                let run_set = StringMap.find ssbench_name acc in
-                StringMap.add ssbench_name (StringMap.add run_name group_set run_set) acc
-              with Not_found ->
-                StringMap.add ssbench_name (StringMap.singleton run_name group_set) acc
-            end
+          if test_group ssbench_name group_name 
+          then match res with
+            | Measurements.Simple res ->
+              begin
+                try
+                  let set = StringMap.find ssbench_name acc in
+                  StringMap.add ssbench_name
+                    (StringMap.add run_name (StringMap.singleton ssbench_name res) set) acc
+                with Not_found ->
+                  StringMap.add ssbench_name
+                    (StringMap.singleton run_name (StringMap.singleton ssbench_name res)) acc
+              end
+            | Measurements.Group functions ->
+              begin
+                let group_set = List.fold_left (fun acc (fun_name, res) ->
+                  StringMap.add fun_name res acc
+                ) StringMap.empty functions in
+                try
+                  let run_set = StringMap.find ssbench_name acc in
+                  StringMap.add ssbench_name (StringMap.add run_name group_set run_set) acc
+                with Not_found ->
+                  StringMap.add ssbench_name (StringMap.singleton run_name group_set) acc
+              end
+          else acc
         ) res acc
       else acc
     ) res acc
@@ -667,30 +677,40 @@ let plot_subcommand () =
     let selection = List.rev !selection in
     if (List.length selection) >= 1
     then
-      let bench_name = List.hd selection in
+      let first_arg = List.hd selection in
+      let bench_name, group_name = 
+        if String.contains first_arg '.' 
+        then
+          let index = String.rindex first_arg '.' in
+          let len_left = (String.length first_arg) - index - 1 in
+          String.sub first_arg 0 index, 
+          if len_left > 0 then 
+            Some (String.sub first_arg (index + 1) ((String.length first_arg) - index - 1))
+          else None
+        else first_arg, None in
       let run_selection = List.tl selection in
       let result_map = get_results run_selection in
       if !Arg_opt.with_fun
       then
-        let by_benchs = get_benchs_by_fun result_map bench_name in
+        let by_benchs = get_benchs_by_fun result_map bench_name group_name in
         if (StringMap.cardinal by_benchs) <> 0
         then
           let list_file = dump_plot_data_with_fun bench_name by_benchs in
           open_plot list_file
-        else Printf.printf "Can't find %s bench" bench_name
+        else Printf.printf "Can't find %s bench" first_arg
       else
-        let by_benchs = get_benchs_by_group result_map bench_name in
+        let by_benchs = get_benchs_by_group result_map bench_name group_name in
         if (StringMap.cardinal by_benchs) <> 0
         then
           let list_file = dump_plot_data_with_group bench_name by_benchs in
           open_plot list_file
-        else Printf.printf "Can't find %s bench" bench_name
+        else Printf.printf "Can't find %s bench" first_arg
     else Printf.printf "You need to specify a bench"
   in
   Arg_opt.with_fun_arg @
   Arg_opt.output_png_arg,
   (fun s -> selection := s :: !selection),
-  "bench_name [<run_name>]\n\
+  "bench_name<.group_name> [<run_name>]\n\
    if no runs name provided, plot for all run, otherwise plot the data on the given runs",
   plot
 
