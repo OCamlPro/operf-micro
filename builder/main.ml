@@ -389,25 +389,26 @@ let cut_pad width s =
 
 let sort_by_bench comp =
   StringMap.fold (fun run_name set_bench res ->
-    StringMap.fold (fun _n bench res ->
-      StringMap.fold (fun name value res ->
+    StringMap.fold (fun bench_name bench res ->
+      StringMap.fold (fun group_name value res ->
         match value with
         | Measurements.Simple v ->
           begin
             try
-              let set = StringMap.find name res in
+              let set = StringMap.find bench_name res in
               let map = StringMap.add run_name v set in
-              StringMap.add name map res
-            with Not_found -> StringMap.add name (StringMap.singleton run_name v) res
+              StringMap.add bench_name map res
+            with Not_found -> StringMap.add bench_name (StringMap.singleton run_name v) res
           end
         | Measurements.Group l ->
           begin
-            List.fold_left (fun res (name, v) ->
+            List.fold_left (fun res (fun_name, v) ->
+              let full_name = Printf.sprintf "%s.%s.%s" bench_name group_name fun_name in
               try
-                let set = StringMap.find name res in
+                let set = StringMap.find full_name res in
                 let map = StringMap.add run_name v set in
-                StringMap.add name map res
-              with Not_found -> StringMap.add name (StringMap.singleton run_name v) res) res l
+                StringMap.add full_name map res
+              with Not_found -> StringMap.add full_name (StringMap.singleton run_name v) res) res l
           end
       ) bench res
     ) set_bench res
@@ -451,8 +452,8 @@ let compare_subcommand () =
     then 
       let _reference, comp = Measurements.compare_measurements result_map in
       let ppf = Format.std_formatter in
-      let name_width = if !Arg_opt.standard_error then 16 else 8 in
-      let width = 13 in
+      let name_width = if !Arg_opt.standard_error then 12 else 8 in
+      let width = 32 in
       print_compared_results ppf width name_width !Arg_opt.standard_error comp
   in
   Arg_opt.standard_error_arg,
