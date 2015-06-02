@@ -543,10 +543,21 @@ let dump_header oc plot_fn full_name =
   Printf.fprintf oc "set ylabel %S\n" "Cycles";
   Printf.fprintf oc "plot %S" plot_fn
 
+let get_plot_dir () =
+  try
+    let config = Detect_config.load_operf_config_file () in
+    let context = Detect_config.load_context config in
+    Filename.concat context.operf_files_path "plot"
+  with Detect_config.Error _ ->
+    let path =
+      Filename.concat (Filename.get_temp_dir_name ())
+        "operf-micro-plot" in
+    Command.remove path;
+    Unix.mkdir path 0o777;
+    path
+
 let dump_plot_data bench_name data =
-  let config = Detect_config.load_operf_config_file () in
-  let context = Detect_config.load_context config in
-  let plot_dir = Filename.concat context.operf_files_path "plot" in
+  let plot_dir = get_plot_dir () in
   let cpt = ref 0 in
   StringMap.fold (fun sbench_name res list ->
     let full_name = Printf.sprintf "%s_%s" bench_name (replace_whitespace sbench_name) in
@@ -637,7 +648,7 @@ let plot_subcommand () =
   Arg_opt.output_png_arg,
   (fun s -> selection := s :: !selection),
   "bench_name<.group_name> [<run_name>]\n\
-   if no runs name provided, plot for all run, otherwise plot the data on the given runs",
+   if no runs name is provided, plot for all run, otherwise plot the data on the given runs",
   plot
 
 let doall_subcommand () =
