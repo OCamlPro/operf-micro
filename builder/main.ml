@@ -129,6 +129,12 @@ module Arg_opt = struct
   let standard_error = ref false
   let standard_error_arg = ["--std-error", Arg.Set standard_error, " print the standard error for each bench"]
 
+  let with_fun = ref false
+  let with_fun_arg = ["--with-fun", Arg.Set with_fun, " plot each functions of the bench"]
+
+  let output_png = ref false
+  let output_png_arg = ["--png", Arg.Set output_png, " choose png output"]
+
   let selected_sets = ref []
   let add_selected_set = Arg.String (fun s -> selected_sets := s :: !selected_sets)
   let selected_sets_arg = ["--selected", add_selected_set, "s run benchmark s. All are run if none is specified";
@@ -383,25 +389,26 @@ let cut_pad width s =
 
 let sort_by_bench comp =
   StringMap.fold (fun run_name set_bench res ->
-    StringMap.fold (fun _n bench res ->
-      StringMap.fold (fun name value res ->
+    StringMap.fold (fun bench_name bench res ->
+      StringMap.fold (fun group_name value res ->
         match value with
         | Measurements.Simple v ->
           begin
             try
-              let set = StringMap.find name res in
+              let set = StringMap.find bench_name res in
               let map = StringMap.add run_name v set in
-              StringMap.add name map res
-            with Not_found -> StringMap.add name (StringMap.singleton run_name v) res
+              StringMap.add bench_name map res
+            with Not_found -> StringMap.add bench_name (StringMap.singleton run_name v) res
           end
         | Measurements.Group l ->
           begin
-            List.fold_left (fun res (name, v) ->
+            List.fold_left (fun res (fun_name, v) ->
+              let full_name = Printf.sprintf "%s.%s.%s" bench_name group_name fun_name in
               try
-                let set = StringMap.find name res in
+                let set = StringMap.find full_name res in
                 let map = StringMap.add run_name v set in
-                StringMap.add name map res
-              with Not_found -> StringMap.add name (StringMap.singleton run_name v) res) res l
+                StringMap.add full_name map res
+              with Not_found -> StringMap.add full_name (StringMap.singleton run_name v) res) res l
           end
       ) bench res
     ) set_bench res
@@ -445,8 +452,8 @@ let compare_subcommand () =
     then 
       let _reference, comp = Measurements.compare_measurements result_map in
       let ppf = Format.std_formatter in
-      let name_width = if !Arg_opt.standard_error then 16 else 8 in
-      let width = 13 in
+      let name_width = if !Arg_opt.standard_error then 12 else 8 in
+      let width = 32 in
       print_compared_results ppf width name_width !Arg_opt.standard_error comp
   in
   Arg_opt.standard_error_arg,
@@ -454,6 +461,184 @@ let compare_subcommand () =
   "[<names>]\n\
    comparisons between runs",
   compare
+
+let replace_whitespace s =
+  String.map (fun c ->
+    match c with
+    | ' ' | '\012' | '\n' | '\r'| '\t' -> '-'
+    | _ -> c
+  ) s
+
+let get_results selected_run =
+  let aux map v =
+    match last_timestamped v with
+    | None -> map
+    | Some res ->
+      let results = Measurements.get_results Measurements.Cycles res.sr_files in
+      StringMap.add v.res_name results map
+  in
+  List.fold_left aux StringMap.empty (load_result_list selected_run)
+
+let get_benchs results selected_bench group_name with_fun =
+  let test_group group = function
+    | None -> true
+    | Some s -> s = group in
+  StringMap.fold (fun run_name res acc ->
+    StringMap.fold (fun bench_name res acc ->
+      if selected_bench = bench_name
+      then
+        StringMap.fold (fun ssbench_name res acc ->
+          if test_group ssbench_name group_name 
+          then match res with
+            | Measurements.Simple res ->
+              begin
+                try
+                  let set = StringMap.find ssbench_name acc in
+                  StringMap.add ssbench_name
+                    (StringMap.add run_name (StringMap.singleton ssbench_name res) set) acc
+                with Not_found ->
+                  StringMap.add ssbench_name
+                    (StringMap.singleton run_name (StringMap.singleton ssbench_name res)) acc
+              end
+            | Measurements.Group functions ->
+              if with_fun
+              then
+                List.fold_left (fun acc (fun_name, res) ->
+                  let full_name = Printf.sprintf "%s.%s" ssbench_name fun_name in
+                  try
+                    let set = StringMap.find full_name acc in
+                    StringMap.add full_name
+                      (StringMap.add run_name (StringMap.singleton full_name res) set) acc
+                  with Not_found ->
+                    StringMap.add full_name (StringMap.singleton run_name (StringMap.singleton full_name res)) acc
+                ) acc functions
+              else
+                begin
+                  let group_set = List.fold_left (fun acc (fun_name, res) ->
+                    StringMap.add fun_name res acc
+                  ) StringMap.empty functions in
+                  try
+                    let run_set = StringMap.find ssbench_name acc in
+                    StringMap.add ssbench_name (StringMap.add run_name group_set run_set) acc
+                  with Not_found ->
+                    StringMap.add ssbench_name (StringMap.singleton run_name group_set) acc
+                end
+          else acc
+        ) res acc
+      else acc
+    ) res acc
+  ) results StringMap.empty
+
+let dump_header oc plot_fn full_name =
+  Printf.fprintf oc "set title %S\n" full_name;
+  if !Arg_opt.output_png
+  then
+    begin
+      let png_name = (Filename.chop_extension plot_fn) ^ ".png" in
+      Printf.fprintf oc "set term png\n";
+      Printf.fprintf oc "set terminal png size 1024,768\n";
+      Printf.fprintf oc "set output %S\n" png_name;
+    end;
+  Printf.fprintf oc "set xlabel %S\n" "Number of runs";
+  Printf.fprintf oc "set ylabel %S\n" "Cycles";
+  Printf.fprintf oc "plot %S" plot_fn
+
+let dump_plot_data bench_name data =
+  let config = Detect_config.load_operf_config_file () in
+  let context = Detect_config.load_context config in
+  let plot_dir = Filename.concat context.operf_files_path "plot" in
+  let cpt = ref 0 in
+  StringMap.fold (fun sbench_name res list ->
+    let full_name = Printf.sprintf "%s_%s" bench_name (replace_whitespace sbench_name) in
+    let plot_file_name = full_name ^ ".data" in
+    let plot_file = Filename.concat plot_dir plot_file_name in
+    let script_file = Filename.concat plot_dir (full_name ^ ".plot") in
+    let oc_plot = open_out plot_file in
+    let oc_script = open_out script_file in
+    cpt := 0;
+    dump_header oc_script plot_file full_name;
+    StringMap.iter (fun run_name res ->
+      StringMap.iter (fun fun_name (list, res) ->
+        let data_name = Printf.sprintf "%s.%s.%s" run_name full_name fun_name in
+        (* Dump data in data file *)
+        Printf.fprintf oc_plot "# %s [%i] \n" data_name (List.length list);
+        List.iter (fun (i, f) -> Printf.fprintf oc_plot "%i %f\n" i f) (List.rev list);
+        Printf.fprintf oc_plot "\n\n";
+        (* Command to plot the data *)
+        if (!cpt = 0)
+        then
+          Printf.fprintf oc_script
+            " index %i ls %i title %S, \"\" index %i using 1:(%f*$1 + %f) ls %i w l title %S"
+            !cpt (!cpt + 1) data_name !cpt
+            res.Measurements.mean_value
+            res.Measurements.constant
+            (!cpt + 1) (data_name ^ " calculated")
+        else
+          Printf.fprintf oc_script
+            ", \"\" index %i ls %i title %S, \"\" index %i using 1:(%f*$1 + %f) ls %i w l title %S"
+            !cpt (!cpt + 1) data_name !cpt
+            res.Measurements.mean_value
+            res.Measurements.constant
+            (!cpt + 1) (data_name ^ " calculated");
+        incr cpt
+      ) res
+    ) res;
+    close_out oc_script;
+    close_out oc_plot;
+    script_file::list
+  ) data []
+
+let open_plot list_file =
+  if !Arg_opt.output_png
+  then Printf.printf "Generating %i png(s)\n%!" (List.length list_file)
+  else Printf.printf "Opening %i graph(s)\n%!" (List.length list_file);
+  let command_list = List.map (fun file ->
+    "gnuplot", [ Command.A "-persist"; Command.A file ], None) list_file in
+  List.iteri (fun i c ->
+    let cmd_str = Command.command_to_string c in
+    let file = Filename.chop_extension (List.nth list_file i) in
+    if !Arg_opt.output_png
+    then Printf.printf "Generating %S\n%!" (file ^ ".png")
+    else Printf.printf "Runnning %S\n%!" cmd_str;
+    let output = Command.run_command ~use_path:true c in
+    match output with
+    | None -> ()
+    | Some s -> Printf.eprintf "%s" s
+  ) command_list
+
+let plot_subcommand () =
+  let selection = ref [] in
+  let plot () =
+    let selection = List.rev !selection in
+    if (List.length selection) >= 1
+    then
+      let first_arg = List.hd selection in
+      let bench_name, group_name = 
+        if String.contains first_arg '.' 
+        then
+          let index = String.rindex first_arg '.' in
+          let len_left = (String.length first_arg) - index - 1 in
+          String.sub first_arg 0 index, 
+          if len_left > 0 then 
+            Some (String.sub first_arg (index + 1) ((String.length first_arg) - index - 1))
+          else None
+        else first_arg, None in
+      let run_selection = List.tl selection in
+      let result_map = get_results run_selection in
+      let by_benchs = get_benchs result_map bench_name group_name !Arg_opt.with_fun in
+      if (StringMap.cardinal by_benchs) <> 0
+      then
+        let list_file = dump_plot_data bench_name by_benchs in
+        open_plot list_file
+      else Printf.printf "Can't find %s bench" first_arg
+    else Printf.printf "You need to specify a bench"
+  in
+  Arg_opt.with_fun_arg @
+  Arg_opt.output_png_arg,
+  (fun s -> selection := s :: !selection),
+  "bench_name<.group_name> [<run_name>]\n\
+   if no runs name provided, plot for all run, otherwise plot the data on the given runs",
+  plot
 
 let doall_subcommand () =
   let do_all name bin_dir extra_dir output_dir selected_sets compile_arg rc =
@@ -490,6 +675,7 @@ let subcommands =
     "clean", clean_subcommand;
     "results", results_subcommand;
     "compare", compare_subcommand;
+    "plot", plot_subcommand;
     "doall", doall_subcommand;
     "check", check_subcommand ]
 

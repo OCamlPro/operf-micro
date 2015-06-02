@@ -66,6 +66,8 @@ val analyse_measurements : column -> recorded_measurements -> result group Strin
 
 val load_results : column -> Command.file list -> result group StringMap.t StringMap.t
 
+val get_results : column -> Command.file list -> ((int * float) list * result) group StringMap.t StringMap.t
+
 val compare_measurements :
   ?reference:string -> result group StringMap.t StringMap.t StringMap.t ->
   string * (float * float) option group StringMap.t StringMap.t StringMap.t

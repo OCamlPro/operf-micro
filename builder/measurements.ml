@@ -421,7 +421,8 @@ type result =
       standard_error : float }
 
 let analyse_measurement c ml =
-  let a = Array.of_list (List.map (result_column c) ml) in
+  let data = List.map (result_column c) ml in
+  let a = Array.of_list data in
   let mean_value, constant = affine_adjustment a in
   let min_value =
     Array.fold_left (fun (row_min, val_min) (row,value) ->
@@ -452,10 +453,10 @@ let analyse_measurements c (rm:recorded_measurements) =
     (fun map { name; list } ->
        let elt =
          match list with
-         | Simple list ->
-           Simple (analyse_measurement c list)
+         | Simple list -> Simple (analyse_measurement c list)
          | Group functions ->
-           Group (List.map (fun (name, list) -> name, analyse_measurement c list) functions)
+           Group (List.map (fun (name, list) ->
+             name, analyse_measurement c list) functions)
        in
        StringMap.add name elt map)
     StringMap.empty rm.run_list
@@ -465,6 +466,29 @@ let load_results c files =
     let name = Filename.chop_extension (Filename.basename filename) in
     let file = read_measurement_file ~filename in
     StringMap.add name (analyse_measurements c file) map
+  in
+  List.fold_left aux StringMap.empty files
+
+let get_data c ml = List.map (result_column c) ml
+
+let get_measurements c (rm:recorded_measurements) =
+  List.fold_left
+    (fun map { name; list } ->
+       let elt =
+         match list with
+         | Simple list ->
+           Simple (get_data c list, (analyse_measurement c list))
+         | Group functions ->
+           Group (List.map (fun (name, list) -> name, (get_data c list, analyse_measurement c list)) functions)
+       in
+       StringMap.add name elt map)
+    StringMap.empty rm.run_list
+
+let get_results c files =
+  let aux map filename =
+    let name = Filename.chop_extension (Filename.basename filename) in
+    let file = read_measurement_file ~filename in
+    StringMap.add name (get_measurements c file) map
   in
   List.fold_left aux StringMap.empty files
 
