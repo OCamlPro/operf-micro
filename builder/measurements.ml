@@ -442,24 +442,21 @@ let analyse_measurement c ml =
       (0, min_float) a
   in
   let standard_error = standard_error ~a:mean_value ~b:constant a in
-  data, { mean_value;
-          constant;
-          min_value;
-          max_value;
-          standard_error }
+  { mean_value;
+    constant;
+    min_value;
+    max_value;
+    standard_error }
 
 let analyse_measurements c (rm:recorded_measurements) =
   List.fold_left
     (fun map { name; list } ->
        let elt =
          match list with
-         | Simple list ->
-           let _, res = analyse_measurement c list in
-           Simple res
+         | Simple list -> Simple (analyse_measurement c list)
          | Group functions ->
            Group (List.map (fun (name, list) ->
-             let _, res = analyse_measurement c list in
-             name, res) functions)
+             name, analyse_measurement c list) functions)
        in
        StringMap.add name elt map)
     StringMap.empty rm.run_list
@@ -472,15 +469,17 @@ let load_results c files =
   in
   List.fold_left aux StringMap.empty files
 
+let get_data c ml = List.map (result_column c) ml
+
 let get_measurements c (rm:recorded_measurements) =
   List.fold_left
     (fun map { name; list } ->
        let elt =
          match list with
          | Simple list ->
-           Simple (analyse_measurement c list)
+           Simple (get_data c list, (analyse_measurement c list))
          | Group functions ->
-           Group (List.map (fun (name, list) -> name, analyse_measurement c list) functions)
+           Group (List.map (fun (name, list) -> name, (get_data c list, analyse_measurement c list)) functions)
        in
        StringMap.add name elt map)
     StringMap.empty rm.run_list

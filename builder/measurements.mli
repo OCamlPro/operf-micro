@@ -60,7 +60,7 @@ type result =
       min_value : int * float;
       standard_error : float }
 
-val analyse_measurement : column -> measurement_sample list -> (int * float) list * result
+val analyse_measurement : column -> measurement_sample list -> result
 
 val analyse_measurements : column -> recorded_measurements -> result group StringMap.t
 
