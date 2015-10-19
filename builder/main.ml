@@ -135,6 +135,9 @@ module Arg_opt = struct
   let output_png = ref false
   let output_png_arg = ["--png", Arg.Set output_png, " choose png output"]
 
+  let allocations = ref false
+  let allocations_arg = ["--allocations", Arg.Set allocations, " show the number of allocations"]
+
   let selected_sets = ref []
   let add_selected_set = Arg.String (fun s -> selected_sets := s :: !selected_sets)
   let selected_sets_arg = ["--selected", add_selected_set, "s run benchmark s. All are run if none is specified";
@@ -305,11 +308,16 @@ let load_result_list selected_run =
        res_list
      else all_res
 
-let do_results selected_names selected_sets more_info =
+let do_results selected_names allocations selected_sets more_info =
   let is_selected_set s =
     match selected_sets with
     | None -> true
     | Some l -> List.mem s l
+  in
+  let kind = if allocations then
+      Measurements.Minor_allocated
+    else
+      Measurements.Cycles
   in
   match selected_names with
   | [] ->
@@ -321,7 +329,7 @@ let do_results selected_names selected_sets more_info =
       (fun v -> match last_timestamped v with
          | None -> ()
          | Some res ->
-           let results = Measurements.load_results Measurements.Cycles res.sr_files in
+           let results = Measurements.load_results kind res.sr_files in
            Format.printf "@[<v 2>%s %s:@ " v.res_name res.sr_timestamp;
            StringMap.iter
              (fun bench_name res_map ->
@@ -365,11 +373,12 @@ let do_results selected_names selected_sets more_info =
 let results_subcommand () =
   let l = ref [] in
   Arg_opt.selected_sets_arg @
+  Arg_opt.allocations_arg @
   Arg_opt.more_info_arg,
   (fun s -> l := s :: !l),
   "[<names>]\n\
    if no name provided, list recorded results, otherwise print last results",
-  (fun () -> do_results !l (Arg_opt.get_selected_sets ()) !Arg_opt.more_info)
+  (fun () -> do_results !l !Arg_opt.allocations (Arg_opt.get_selected_sets ()) !Arg_opt.more_info)
 
 let load_all_results selected_run =
   let aux map v =
@@ -657,7 +666,7 @@ let doall_subcommand () =
     do_init name extra_dir bin_dir;
     do_build compile_arg;
     do_run output_dir rc;
-    do_results [name] selected_sets !Arg_opt.more_info
+    do_results [name] !Arg_opt.allocations selected_sets !Arg_opt.more_info
   in
   let args = ref [] in
   Arg_opt.bin_dir_arg @
@@ -666,6 +675,7 @@ let doall_subcommand () =
   Arg_opt.output_dir_arg @
   Arg_opt.selected_sets_arg @
   Arg_opt.more_info_arg @
+  Arg_opt.allocations_arg @
   compiler_arg_opt,
   (fun s -> args := s :: !args),
   "[<args>] <name>\n\
