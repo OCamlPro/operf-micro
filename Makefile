@@ -5,7 +5,7 @@ FILES= \
   micro_bench_types.mli time_stamp_counter.ml \
   benchmarks
 
-all:
+all: merlin
 	$(MAKE) -C builder all
 
 install_benchs:
@@ -27,9 +27,15 @@ distclean: clean
 
 clean:
 	$(MAKE) -C builder clean
+	rm *.cmi
 
 depend:
 	$(MAKE) -C builder depend
+
+%.cmi: %.mli
+	ocamlc -c $<
+
+merlin: micro_bench_types.cmi
 
 .PHONY: all install install-builder install-data depend clean\
 	uninstall_benchs uninstall
