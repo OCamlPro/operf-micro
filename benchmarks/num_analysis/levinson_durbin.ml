@@ -55,8 +55,8 @@ let print_ar_coeffs label data order =
 
 let main i =
   let order = i in (* AR order *)
-  ignore (print_ar_coeffs "Sound /a/" Levinson_durbin_ds.a order);
-  ignore (print_ar_coeffs "Sound /i/" Levinson_durbin_ds.i order);
-  ignore (print_ar_coeffs "Sound /u/" Levinson_durbin_ds.u order);
-  ignore (print_ar_coeffs "Sound /e/" Levinson_durbin_ds.e order);
-  ignore (print_ar_coeffs "Sound /o/" Levinson_durbin_ds.o order)
+  print_ar_coeffs "Sound /a/" Levinson_durbin_ds.a order ::
+  print_ar_coeffs "Sound /i/" Levinson_durbin_ds.i order ::
+  print_ar_coeffs "Sound /u/" Levinson_durbin_ds.u order ::
+  print_ar_coeffs "Sound /e/" Levinson_durbin_ds.e order ::
+  print_ar_coeffs "Sound /o/" Levinson_durbin_ds.o order :: []
