@@ -5,15 +5,7 @@ type file = string
 type directory = string
 
 type error =
-  | Parse_error of Loc.t
-  | Missing_config_field of file * string
-  | Duplicate_config_field of file * string
-  | No_config_file
-  | Not_ocaml_compiler_dir
-  | No_compiler
-  | No_timestamp
-  | Missing_directory of directory
-  | Missing_home
+  | Error_home of string
   | Already_locked
 
 exception Error of error
@@ -121,7 +113,7 @@ let init_operf_default_dir () =
   | Ok home_dir ->
     let cache_dir = Filename.concat home_dir ".cache/operf/micro" in
     mk_dir cache_dir
-  | Err _ -> raise (Error Missing_home)
+  | Err msg -> raise (Error (Error_home msg))
 
 let operf_default_dir =
   let res = home_directory () in
@@ -129,7 +121,7 @@ let operf_default_dir =
   | Ok home_dir ->
     let cache_dir = Filename.concat home_dir ".cache/operf/micro" in
     cache_dir
-  | Err _ -> raise (Error Missing_home)
+  | Err msg -> raise (Error (Error_home msg))
 
 let lock_path = Filename.concat operf_default_dir ".lock"
 

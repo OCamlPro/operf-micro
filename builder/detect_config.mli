@@ -1,6 +1,18 @@
 open Utils
 open Command
 
+type error =
+  | Parse_error of Loc.t
+  | Missing_config_field of file * string
+  | Duplicate_config_field of file * string
+  | No_config_file
+  | Not_ocaml_compiler_dir
+  | No_compiler
+  | No_timestamp
+  | Missing_directory of directory
+
+exception Error of error
+
 type config =
   { name : string;
     ocaml_bin_dir : directory;

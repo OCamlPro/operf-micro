@@ -24,6 +24,18 @@ type context =
     operf_files_path : directory;
     operf_files_build_path : directory }
 
+type error =
+  | Parse_error of Loc.t
+  | Missing_config_field of file * string
+  | Duplicate_config_field of file * string
+  | No_config_file
+  | Not_ocaml_compiler_dir
+  | No_compiler
+  | No_timestamp
+  | Missing_directory of directory
+
+exception Error of error
+
 type source_file =
   | C
   | Mli

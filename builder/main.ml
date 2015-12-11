@@ -749,8 +749,10 @@ let print_detect_config_error ppf = function
     Format.fprintf ppf "timestamp file is missing"
   | Missing_directory d ->
     Format.fprintf ppf "The directory %s doesn't exists" d
-  | Missing_home ->
-    Format.fprintf ppf "Environment variable HOME is not set"
+
+let print_utils_error ppf = function
+  | Error_home str ->
+    Format.fprintf ppf "%s" str
   | Already_locked ->
     Format.fprintf ppf "%s is already use by another instance of operf-micro"
       Utils.operf_default_dir
@@ -762,7 +764,8 @@ let print_measurements_error ppf = function
 let print_errors ppf = function
   | Error e -> print_error ppf e
   | Benchmark.Error e -> print_error_benchmark ppf e
-  | Utils.Error e -> print_detect_config_error ppf e
+  | Detect_config.Error e -> print_detect_config_error ppf e
+  | Utils.Error e -> print_utils_error ppf e
   | Measurements.Error e -> print_measurements_error ppf e
   | e ->
     let bt = Printexc.get_backtrace () in
