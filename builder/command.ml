@@ -2,9 +2,6 @@ open Utils
 
 let debug = false
 
-type file = string
-type directory = string
-
 type command_part =
   | IF of file (** input file *)
   | OF of file (** output file *)

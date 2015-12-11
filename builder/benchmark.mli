@@ -1,4 +1,4 @@
-open Command
+open Utils
 open Detect_config
 
 type library = string
