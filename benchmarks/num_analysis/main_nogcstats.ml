@@ -1,0 +1,1 @@
+let _ = Bench.main ()
