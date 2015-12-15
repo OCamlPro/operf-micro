@@ -99,7 +99,7 @@ let rec remove file =
     | _ ->
        Printf.eprintf "ignored file: %s@." file
 
-let mk_dir path =
+let clean_and_create_dir path =
   remove path;
   Unix.mkdir path 0o777
 
@@ -112,7 +112,7 @@ let init_operf_default_dir () =
   match res with
   | Ok home_dir ->
     let cache_dir = Filename.concat home_dir ".cache/operf/micro" in
-    mk_dir cache_dir
+    clean_and_create_dir cache_dir
   | Err msg -> raise (Error (Error_home msg))
 
 let operf_default_dir =

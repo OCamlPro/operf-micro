@@ -31,8 +31,6 @@ val read_file : file -> string option
 val get_and_make_subdir : (unit -> (directory, directory) result) ->
   string -> (directory, string) result
 
-val remove : directory -> unit
-
 val subdirectories : directory -> directory list
 
 val debug : bool

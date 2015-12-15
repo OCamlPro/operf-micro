@@ -36,7 +36,7 @@ let do_check extra_dir =
   let path =
     Filename.concat (Filename.get_temp_dir_name ())
       "operf-micro-check" in
-  Command.remove path;
+  Utils.remove path;
   Unix.mkdir path 0o777;
   match Detect_config.find_ocaml_binary_path () with
   | None ->
@@ -52,7 +52,7 @@ let do_check extra_dir =
     let build_descr = load_build_descrs context in
     Detect_config.prepare_build context;
     build_benchmarks context build_descr [];
-    Command.remove path
+    Utils.remove path
 
 let check_subcommand () =
   let r = ref [] in
@@ -226,11 +226,19 @@ let init_subcommand () =
 let do_clean () =
   match Detect_config.find_operf_directory () with
   | None ->
-    Format.printf "not found@."
+    (match find_operf_directory ?path:(Some operf_default_dir) () with
+     | None -> Format.printf "nothing to clean@."
+     | Some operf_root_dir ->
+       let operf_dir = Filename.concat operf_root_dir ".operf" in
+       let sdir = Filename.concat operf_dir "micro" in
+       Utils.remove sdir;
+       try
+         Unix.rmdir operf_dir
+       with _ -> ())
   | Some operf_root_dir ->
     let operf_dir = Filename.concat operf_root_dir ".operf" in
     let sdir = Filename.concat operf_dir "micro" in
-    Command.remove sdir;
+    Utils.remove sdir;
     try
       Unix.rmdir operf_dir
     with _ -> ()
@@ -573,7 +581,7 @@ let get_plot_dir () =
     let path =
       Filename.concat (Filename.get_temp_dir_name ())
         "operf-micro-plot" in
-    Command.remove path;
+    Utils.remove path;
     Unix.mkdir path 0o777;
     path
 
@@ -677,7 +685,9 @@ let doall_subcommand () =
     do_clean ();
     do_init name extra_dir bin_dir default_dir_flag;
     do_build compile_arg;
+    Utils.unlock ();
     do_run output_dir rc;
+    Utils.unlock ();
     do_results [name] !Arg_opt.allocations selected_sets !Arg_opt.more_info
   in
   let args = ref [] in

@@ -278,34 +278,6 @@ let get_and_make_subdir f subdir =
           (Printf.sprintf "Error while mkdir %s: %s"
              sub (Unix.error_message e))
 
-let rec remove file =
-  if Sys.file_exists file
-  then
-    let stat = Unix.stat file in
-    match stat.Unix.st_kind with
-    | Unix.S_REG
-    | Unix.S_LNK ->
-       Unix.unlink file
-    | Unix.S_DIR ->
-       let handle = Unix.opendir file in
-       begin try
-           while true do
-             let filename = Unix.readdir handle in
-             match filename with
-             | "." | ".." -> ()
-             | _ ->
-                remove (Filename.concat file filename)
-           done
-         with End_of_file -> ()
-       end;
-       Unix.closedir handle;
-       begin try
-           Unix.rmdir file
-         with _ -> ()
-       end
-    | _ ->
-       Printf.eprintf "ignored file: %s@." file
-
 let subdirectories (d:directory) : directory list =
   let subdirectories =
     Array.to_list
