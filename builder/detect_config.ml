@@ -300,7 +300,7 @@ let write_initialize root_dir extra_dir config ~with_default_benchmarks =
   List.iter (fun s -> copy_extra_benchmark_files s root_dir) extra_dir;
   copy_home_files root_dir
 
-let initialize_in_compiler_dir ?path ?(with_default_benchmarks=true) name extra_dir =
+let initialize_in_compiler_dir ?path ~with_default_benchmarks name extra_dir =
   let root_dir =
     match find_ocaml_root_directory ?path () with
     | None ->
@@ -315,7 +315,7 @@ let initialize_in_compiler_dir ?path ?(with_default_benchmarks=true) name extra_
   root_dir
 
 let initialize_with_bin_dir
-    ?(path=run_directory) ?(with_default_benchmarks=true)
+    ?(path=run_directory) ~with_default_benchmarks
     name extra_dir ocaml_bin_dir =
   let root_dir = path in
   let ocaml_bin_dir =

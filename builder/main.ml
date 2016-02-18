@@ -146,6 +146,10 @@ module Arg_opt = struct
   let selected_sets_arg = ["--selected", add_selected_set, "s run benchmark s. All are run if none is specified";
                            "-s" , add_selected_set, " alias of --selected"]
 
+  let with_default_benchmarks = ref true
+  let without_defualt_bench_arg =
+    ["--without-default", Arg.Clear with_default_benchmarks, " do not use the default benchmark set"]
+
   let get_selected_sets () =
     match !selected_sets with
     | [] -> None
@@ -188,21 +192,31 @@ let run_subcommand () =
   "",
   run
 
-let do_init name extra_dir bin_dir default_dir_flag =
+let do_init name ~with_default_benchmarks extra_dir bin_dir default_dir_flag =
   let init_dir =
     match bin_dir with
     | None ->
       if default_dir_flag
       then
         (init_operf_default_dir ();
-         Detect_config.initialize_in_compiler_dir ~path:Utils.operf_default_dir name extra_dir)
-      else Detect_config.initialize_in_compiler_dir name extra_dir
+         Detect_config.initialize_in_compiler_dir
+           ~with_default_benchmarks
+           ~path:Utils.operf_default_dir name extra_dir)
+      else
+        Detect_config.initialize_in_compiler_dir
+          ~with_default_benchmarks
+          name extra_dir
     | Some dir ->
       if default_dir_flag
       then
         (init_operf_default_dir ();
-         Detect_config.initialize_with_bin_dir ~path:Utils.operf_default_dir name extra_dir dir)
-      else Detect_config.initialize_with_bin_dir name extra_dir dir
+         Detect_config.initialize_with_bin_dir
+           ~with_default_benchmarks
+           ~path:Utils.operf_default_dir name extra_dir dir)
+      else
+        Detect_config.initialize_with_bin_dir
+          ~with_default_benchmarks
+          name extra_dir dir
   in
   Format.printf "initialized in directory %s@." init_dir
 
@@ -210,6 +224,7 @@ let init_subcommand () =
   let name = ref None in
   Arg_opt.bin_dir_arg @
   Arg_opt.default_dir_arg @
+  Arg_opt.without_defualt_bench_arg @
   Arg_opt.extra_dir_arg,
   (fun s ->
      match !name with
@@ -221,7 +236,9 @@ let init_subcommand () =
      let name = get_opt !name
          (fun () -> raise (Error (Mandatory_option "name")))
     in
-     do_init name !Arg_opt.extra_dir !Arg_opt.bin_dir !Arg_opt.default_dir_flag)
+    do_init
+      ~with_default_benchmarks:!Arg_opt.with_default_benchmarks
+      name !Arg_opt.extra_dir !Arg_opt.bin_dir !Arg_opt.default_dir_flag)
 
 let do_clean () =
   match Detect_config.find_operf_directory () with
@@ -683,7 +700,8 @@ let plot_subcommand () =
 let doall_subcommand () =
   let do_all name bin_dir extra_dir default_dir_flag output_dir selected_sets compile_arg rc =
     do_clean ();
-    do_init name extra_dir bin_dir default_dir_flag;
+    do_init ~with_default_benchmarks:!Arg_opt.with_default_benchmarks
+      name extra_dir bin_dir default_dir_flag;
     do_build compile_arg;
     Utils.unlock ();
     do_run output_dir rc;
@@ -699,6 +717,7 @@ let doall_subcommand () =
   Arg_opt.selected_sets_arg @
   Arg_opt.more_info_arg @
   Arg_opt.allocations_arg @
+  Arg_opt.without_defualt_bench_arg @
   compiler_arg_opt,
   (fun s -> args := s :: !args),
   "[<args>] <name>\n\

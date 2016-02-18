@@ -45,11 +45,11 @@ val load_operf_config_file : ?path:directory -> unit -> config
 
 val initialize_in_compiler_dir :
   ?path:directory ->
-  ?with_default_benchmarks:bool ->
+  with_default_benchmarks:bool ->
   string -> directory list -> directory
 val initialize_with_bin_dir :
   ?path:directory ->
-  ?with_default_benchmarks:bool ->
+  with_default_benchmarks:bool ->
   string -> directory list -> directory -> directory
 
 val load_context : config -> context
