@@ -8,6 +8,6 @@ bug-reports: "http://github.com/OCamlPro/operf-micro/issues"
 license: "MIT"
 
 build: [ make ]
-install: [ make "install_benchs" ]
-remove: [ make "uninstall_benchs" ]
+install: [ make "install" ]
+remove: [ make "uninstall" ]
 substs: [ "Makefile.conf" ]
