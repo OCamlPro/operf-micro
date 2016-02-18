@@ -1,8 +1,5 @@
 open Utils
 
-type file = string
-type directory = string
-
 type command_part =
   | IF of file (** input file *)
   | OF of file (** output file *)
@@ -33,8 +30,6 @@ val read_file : file -> string option
 
 val get_and_make_subdir : (unit -> (directory, directory) result) ->
   string -> (directory, string) result
-
-val remove : directory -> unit
 
 val subdirectories : directory -> directory list
 

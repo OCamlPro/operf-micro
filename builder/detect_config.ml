@@ -103,21 +103,6 @@ let is_ocaml_building_directory path =
 let find_ocaml_root_directory ?(path=run_directory) () =
   find_ancestor is_ocaml_building_directory path
 
-let make_directory dir =
-  try Unix.mkdir dir 0o755
-  with Unix.Unix_error (Unix.EEXIST, _, _) -> ()
-
-let home_directory () =
-  try
-    let d = Sys.getenv "HOME" in
-    if Sys.file_exists d
-    then
-      if Sys.is_directory d
-      then Ok d
-      else Err (d ^ " is not a directory")
-    else Err ("directory " ^ d ^ " doesn't exists")
-  with Not_found -> Err "Environment variable HOME is not set"
-
 let operf_home_directory () =
   get_and_make_subdir
     (fun () -> get_and_make_subdir home_directory ".operf")
@@ -236,7 +221,14 @@ let parse_operf_config_file dir filename v =
 let load_operf_config_file ?path () =
   match find_operf_directory ?path () with
   | None ->
-    raise (Error (No_config_file))
+    if Sys.file_exists operf_default_dir then
+      (match find_operf_directory ?path:(Some operf_default_dir) () with
+       | None -> raise (Error (No_config_file))
+       | Some path ->
+         Utils.lock ();
+         let c = config_file_name path in
+         parse_operf_config_file path c (load_config_file c))
+    else raise (Error (No_config_file))
   | Some path ->
     let c = config_file_name path in
     parse_operf_config_file path c (load_config_file c)

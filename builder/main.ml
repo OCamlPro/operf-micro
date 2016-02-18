@@ -36,13 +36,13 @@ let do_check extra_dir =
   let path =
     Filename.concat (Filename.get_temp_dir_name ())
       "operf-micro-check" in
-  Command.remove path;
+  Utils.remove path;
   Unix.mkdir path 0o777;
   match Detect_config.find_ocaml_binary_path () with
   | None ->
     raise (Error Cannot_find_compiler)
-  | Some (bin_dir:Command.directory) ->
-    let _ : Command.directory =
+  | Some (bin_dir:Utils.directory) ->
+    let _ : Utils.directory =
       Detect_config.initialize_with_bin_dir
         ~path
         ~with_default_benchmarks:false
@@ -52,7 +52,7 @@ let do_check extra_dir =
     let build_descr = load_build_descrs context in
     Detect_config.prepare_build context;
     build_benchmarks context build_descr [];
-    Command.remove path
+    Utils.remove path
 
 let check_subcommand () =
   let r = ref [] in
@@ -123,6 +123,9 @@ module Arg_opt = struct
   let extra_dir = ref []
   let extra_dir_arg = ["-I", add_string extra_dir, "p path to extra benchmarks directory"]
 
+  let default_dir_flag = ref false
+  let default_dir_arg = ["--default-dir", Arg.Set default_dir_flag, " use $(HOME)/.operf instead of cwd"]
+
   let more_info = ref false
   let more_info_arg = ["--more", Arg.Set more_info, " print min,max and standard error infos"]
 
@@ -185,19 +188,28 @@ let run_subcommand () =
   "",
   run
 
-let do_init name extra_dir bin_dir =
+let do_init name extra_dir bin_dir default_dir_flag =
   let init_dir =
     match bin_dir with
     | None ->
-      Detect_config.initialize_in_compiler_dir name extra_dir
+      if default_dir_flag
+      then
+        (init_operf_default_dir ();
+         Detect_config.initialize_in_compiler_dir ~path:Utils.operf_default_dir name extra_dir)
+      else Detect_config.initialize_in_compiler_dir name extra_dir
     | Some dir ->
-      Detect_config.initialize_with_bin_dir name extra_dir dir
+      if default_dir_flag
+      then
+        (init_operf_default_dir ();
+         Detect_config.initialize_with_bin_dir ~path:Utils.operf_default_dir name extra_dir dir)
+      else Detect_config.initialize_with_bin_dir name extra_dir dir
   in
   Format.printf "initialized in directory %s@." init_dir
 
 let init_subcommand () =
   let name = ref None in
   Arg_opt.bin_dir_arg @
+  Arg_opt.default_dir_arg @
   Arg_opt.extra_dir_arg,
   (fun s ->
      match !name with
@@ -209,16 +221,24 @@ let init_subcommand () =
      let name = get_opt !name
          (fun () -> raise (Error (Mandatory_option "name")))
     in
-     do_init name !Arg_opt.extra_dir !Arg_opt.bin_dir)
+     do_init name !Arg_opt.extra_dir !Arg_opt.bin_dir !Arg_opt.default_dir_flag)
 
 let do_clean () =
   match Detect_config.find_operf_directory () with
   | None ->
-    Format.printf "not found@."
+    (match find_operf_directory ?path:(Some operf_default_dir) () with
+     | None -> Format.printf "nothing to clean@."
+     | Some operf_root_dir ->
+       let operf_dir = Filename.concat operf_root_dir ".operf" in
+       let sdir = Filename.concat operf_dir "micro" in
+       Utils.remove sdir;
+       try
+         Unix.rmdir operf_dir
+       with _ -> ())
   | Some operf_root_dir ->
     let operf_dir = Filename.concat operf_root_dir ".operf" in
     let sdir = Filename.concat operf_dir "micro" in
-    Command.remove sdir;
+    Utils.remove sdir;
     try
       Unix.rmdir operf_dir
     with _ -> ()
@@ -232,12 +252,12 @@ let clean_subcommand () =
 
 type timestamped_result =
     { sr_timestamp: Detect_config.timestamp;
-      sr_dir : Command.directory;
-      sr_files : Command.file list }
+      sr_dir : Utils.directory;
+      sr_files : Utils.file list }
 
 type results_files =
     { res_name : string;
-      res_dir : Command.directory;
+      res_dir : Utils.directory;
       res : timestamped_result list }
 
 let last_timestamped rf =
@@ -557,11 +577,11 @@ let get_plot_dir () =
     let config = Detect_config.load_operf_config_file () in
     let context = Detect_config.load_context config in
     Filename.concat context.operf_files_path "plot"
-  with Detect_config.Error _ ->
+  with Utils.Error _ ->
     let path =
       Filename.concat (Filename.get_temp_dir_name ())
         "operf-micro-plot" in
-    Command.remove path;
+    Utils.remove path;
     Unix.mkdir path 0o777;
     path
 
@@ -661,16 +681,19 @@ let plot_subcommand () =
   plot
 
 let doall_subcommand () =
-  let do_all name bin_dir extra_dir output_dir selected_sets compile_arg rc =
+  let do_all name bin_dir extra_dir default_dir_flag output_dir selected_sets compile_arg rc =
     do_clean ();
-    do_init name extra_dir bin_dir;
+    do_init name extra_dir bin_dir default_dir_flag;
     do_build compile_arg;
+    Utils.unlock ();
     do_run output_dir rc;
+    Utils.unlock ();
     do_results [name] !Arg_opt.allocations selected_sets !Arg_opt.more_info
   in
   let args = ref [] in
   Arg_opt.bin_dir_arg @
   Arg_opt.extra_dir_arg @
+  Arg_opt.default_dir_arg @
   Arg_opt.run_config_arg @
   Arg_opt.output_dir_arg @
   Arg_opt.selected_sets_arg @
@@ -685,7 +708,7 @@ let doall_subcommand () =
      | [name] ->
        let selected_set = Arg_opt.get_selected_sets () in
        let rc = Arg_opt.make_run_config selected_set in
-       do_all name !Arg_opt.bin_dir !Arg_opt.extra_dir !Arg_opt.output_dir selected_set !compile_arg rc
+       do_all name !Arg_opt.bin_dir !Arg_opt.extra_dir !Arg_opt.default_dir_flag !Arg_opt.output_dir selected_set !compile_arg rc
      | _ -> failwith "wrong number of arguments, expected: <name>")
 
 let subcommands =
@@ -737,6 +760,13 @@ let print_detect_config_error ppf = function
   | Missing_directory d ->
     Format.fprintf ppf "The directory %s doesn't exists" d
 
+let print_utils_error ppf = function
+  | Error_home str ->
+    Format.fprintf ppf "%s" str
+  | Already_locked ->
+    Format.fprintf ppf "%s is already use by another instance of operf-micro"
+      Utils.operf_default_dir
+
 let print_measurements_error ppf = function
   | Measurements.Missing_field s ->
      Format.fprintf ppf "Missing file field %s" s
@@ -745,6 +775,7 @@ let print_errors ppf = function
   | Error e -> print_error ppf e
   | Benchmark.Error e -> print_error_benchmark ppf e
   | Detect_config.Error e -> print_detect_config_error ppf e
+  | Utils.Error e -> print_utils_error ppf e
   | Measurements.Error e -> print_measurements_error ppf e
   | e ->
     let bt = Printexc.get_backtrace () in
@@ -771,7 +802,8 @@ let () =
                     (Filename.basename Sys.executable_name) ^ " " ^
                     subcommand_name ^ " " ^ usage in
         Arg.parse_argv ~current:(ref 1) Sys.argv (Arg.align spec) annon_arg usage;
-        run ()
+        run ();
+        if subcommand_name <> "init" then Utils.unlock ()
       with
       | Arg.Bad s
       | Arg.Help s ->
