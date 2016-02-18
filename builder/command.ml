@@ -227,9 +227,26 @@ let rec recursive_extra_copy src dst =
   else
     if (is_benchmark src)
     then
-      let basename = Filename.basename src in
+      (* If the path is relative, convert it to an absolute one
+         this allows to handle '.' for instance *)
+      let abs_src =
+        if Filename.is_relative src then
+          Filename.concat (Sys.getcwd ()) src
+        else
+          src
+      in
+      let basename =
+        let rec loop abs_src =
+          let basename = Filename.basename abs_src in
+          (* Chop trailing '.' *)
+          if basename = Filename.current_dir_name then
+            loop (Filename.dirname abs_src)
+          else basename
+        in
+        loop abs_src
+      in
       let dst = Filename.concat dst basename in
-      recursive_copy src dst
+      recursive_copy abs_src dst
     else
       let handle = Unix.opendir src in
       begin try
