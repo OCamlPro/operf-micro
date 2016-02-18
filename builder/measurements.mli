@@ -19,7 +19,10 @@ type measurement_sample = {
   minor_collections : int;
 }
 
-type measurements = string * (string * string) list * measurement_sample list
+type measurements =
+  { name : string;
+    params : (string * string) list;
+    samples : measurement_sample list }
 
 type 'a group =
   | Simple of 'a
@@ -27,6 +30,7 @@ type 'a group =
 
 type runs = {
   name : string;
+  parameter : int option;
   list : (measurement_sample list) group;
 }
 
@@ -60,14 +64,17 @@ type result =
       min_value : int * float;
       standard_error : float }
 
+type group_param = { group : string; parameter : int option }
+module GroupParamMap : Map.S with type key = group_param
+
 val analyse_measurement : column -> measurement_sample list -> result
 
-val analyse_measurements : column -> recorded_measurements -> result group StringMap.t
+val analyse_measurements : column -> recorded_measurements -> result group GroupParamMap.t
 
-val load_results : column -> Utils.file list -> result group StringMap.t StringMap.t
+val load_results : column -> Utils.file list -> result group GroupParamMap.t StringMap.t
 
-val get_results : column -> Utils.file list -> ((int * float) list * result) group StringMap.t StringMap.t
+val get_results : column -> Utils.file list -> ((int * float) list * result) group GroupParamMap.t StringMap.t
 
 val compare_measurements :
-  ?reference:string -> result group StringMap.t StringMap.t StringMap.t ->
-  string * (float * float) option group StringMap.t StringMap.t StringMap.t
+  ?reference:string -> result group GroupParamMap.t StringMap.t StringMap.t ->
+  string * (float * float) option group GroupParamMap.t StringMap.t StringMap.t

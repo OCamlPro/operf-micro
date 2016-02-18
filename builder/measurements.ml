@@ -2,6 +2,13 @@ open Detect_config
 open Files
 open Utils
 
+type group_param = { group : string; parameter : int option }
+module GroupParam = struct
+  type t = group_param
+  let compare = Pervasives.compare
+end
+module GroupParamMap = Map.Make(GroupParam)
+
 type error =
   | Missing_field of string
 
@@ -19,7 +26,10 @@ type measurement_sample = {
   minor_collections : int;
 }
 
-type measurements = string * (string * string) list * measurement_sample list
+type measurements =
+  { name : string;
+    params : (string * string) list;
+    samples : measurement_sample list }
 
 let measurement_dict
     {
@@ -49,14 +59,14 @@ let measurement_dict
   in
   Dict dict
 
-let measurement_file context bench measurements =
+let measurement_file context bench (measurements:measurements list) =
   let f name v d = (name,v) :: d in
   let fo name f v d =
     match v with
     | None -> d
     | Some v -> (name, f v) :: d in
   let runs =
-    let aux (func, params, m) =
+    let aux { name = func; params; samples = m } =
       let dict =
         []
         |> f "list" (List (List.map measurement_dict m))
@@ -81,6 +91,7 @@ type 'a group =
 
 type runs = {
   name : string;
+  parameter : int option;
   list : (measurement_sample list) group;
 }
 
@@ -107,6 +118,7 @@ module Reader = struct
   type runs' = {
     name : string option;
     group : string option;
+    parameter : int option;
     list : measurement_sample list option;
   }
 
@@ -171,25 +183,35 @@ module Reader = struct
     | "properties", Dict l ->
       List.fold_left (fun r field ->
         match field with
-        | "group", String v -> { r with group = Some v }
-        | _ -> r)
+        | "group", String v -> ({ r with group = Some v }:runs')
+        | "parameter", String v ->
+          ({ r with parameter = Some (int_of_string v) }:runs')
+        | property, _ ->
+          Printf.eprintf "unknown property %s\n%!" property;
+          r)
         r l
     | "list", List l ->
        { r with list = Some (List.map read_measurement_sample l) }
     | _ -> r
 
   let read_add_runs (no_group, groups) v =
-    let empty : runs' = { name = None; group = None; list = None } in
+    let empty : runs' =
+      { name = None; group = None; parameter = None; list = None }
+    in
     let r = match v with
       | Dict l -> List.fold_left add_runs_field empty l
       | _ -> failwith "parse error" in
     match r with
-    | { name = Some name; group; list = Some list } ->
+    | { name = Some name; group; parameter; list = Some list } ->
       begin match group with
-        | None -> { name; list = Simple list } :: no_group, groups
+        | None -> { name; parameter; list = Simple list } :: no_group, groups
         | Some group ->
-          let l = try StringMap.find group groups with Not_found -> [] in
-          no_group, StringMap.add group ((name, list) :: l) groups
+          let l =
+            try GroupParamMap.find {group; parameter} groups with
+              Not_found -> []
+          in
+          no_group,
+          GroupParamMap.add {group; parameter} ((name, list) :: l) groups
       end
     | _ -> failwith "parse error"
 
@@ -200,9 +222,10 @@ module Reader = struct
     | "date", String v -> { r with date = Some v }
     | "runs", List l ->
       let no_groups, groups =
-        List.fold_left read_add_runs ([],StringMap.empty) l in
-      let groups = StringMap.fold
-          (fun group l acc -> { name = group; list = Group l } :: acc)
+        List.fold_left read_add_runs ([],GroupParamMap.empty) l in
+      let groups = GroupParamMap.fold
+          (fun {group; parameter} l acc ->
+             { name = group; parameter; list = Group l } :: acc)
           groups no_groups in
       { r with run_list = Some groups }
     | _ -> r
@@ -286,9 +309,12 @@ let read_measurement ~contents:text : measurements list =
   let rec aux l curr_name curr_params curr acc : measurements list =
     match l with
     | [] ->
-      (curr_name, curr_params, curr) :: acc
+      { name = curr_name; params = curr_params; samples = curr } :: acc
     | "" :: t ->
-      aux_name t ((curr_name, curr_params, curr) :: acc)
+      let measurement =
+        { name = curr_name; params = curr_params; samples = curr }
+      in
+      aux_name t (measurement :: acc)
     | h :: t ->
       if h.[0] = '#'
       then aux t curr_name curr_params curr acc
@@ -450,7 +476,7 @@ let analyse_measurement c ml =
 
 let analyse_measurements c (rm:recorded_measurements) =
   List.fold_left
-    (fun map { name; list } ->
+    (fun map { name = group; parameter; list } ->
        let elt =
          match list with
          | Simple list -> Simple (analyse_measurement c list)
@@ -458,8 +484,8 @@ let analyse_measurements c (rm:recorded_measurements) =
            Group (List.map (fun (name, list) ->
              name, analyse_measurement c list) functions)
        in
-       StringMap.add name elt map)
-    StringMap.empty rm.run_list
+       GroupParamMap.add { group; parameter } elt map)
+    GroupParamMap.empty rm.run_list
 
 let load_results c files =
   let aux map filename =
@@ -473,7 +499,7 @@ let get_data c ml = List.map (result_column c) ml
 
 let get_measurements c (rm:recorded_measurements) =
   List.fold_left
-    (fun map { name; list } ->
+    (fun map { name = group; parameter; list } ->
        let elt =
          match list with
          | Simple list ->
@@ -481,8 +507,8 @@ let get_measurements c (rm:recorded_measurements) =
          | Group functions ->
            Group (List.map (fun (name, list) -> name, (get_data c list, analyse_measurement c list)) functions)
        in
-       StringMap.add name elt map)
-    StringMap.empty rm.run_list
+       GroupParamMap.add { group; parameter } elt map)
+    GroupParamMap.empty rm.run_list
 
 let get_results c files =
   let aux map filename =
@@ -492,7 +518,8 @@ let get_results c files =
   in
   List.fold_left aux StringMap.empty files
 
-let compare_measurements ?reference results =
+let compare_measurements ?reference
+    (results:result group GroupParamMap.t StringMap.t StringMap.t) =
   let reference, ref_value =
     match reference with
     | Some reference when StringMap.mem reference results ->
@@ -526,8 +553,10 @@ let compare_measurements ?reference results =
   let merge2 _key reference value =
     match reference, value with
     | None, _ -> None
-    | Some reference, None -> Some (StringMap.merge merge reference StringMap.empty)
-    | Some reference, Some result -> Some (StringMap.merge merge reference result)
+    | Some reference, None ->
+      Some (GroupParamMap.merge merge reference GroupParamMap.empty)
+    | Some reference, Some result ->
+      Some (GroupParamMap.merge merge reference result)
   in
   let aux results = StringMap.merge merge2 ref_value results in
   reference, StringMap.map aux results

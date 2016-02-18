@@ -345,6 +345,11 @@ let load_result_list selected_run =
        res_list
      else all_res
 
+let format_group_parameter ppf { Measurements.group; parameter } =
+  match parameter with
+  | None -> Format.fprintf ppf "%s" group
+  | Some i -> Format.fprintf ppf "%s %i" group i
+
 let do_results selected_names allocations selected_sets more_info =
   let is_selected_set s =
     match selected_sets with
@@ -373,20 +378,22 @@ let do_results selected_names allocations selected_sets more_info =
                 if is_selected_set bench_name
                 then begin
                   Format.printf "@[<v 2>%s:@ " bench_name;
-                  StringMap.iter
-                    (fun name -> function
+                  Measurements.GroupParamMap.iter
+                    (fun group_param -> function
                        | Measurements.Simple result ->
                          if more_info
-                         then Format.printf "%s: %.2f min:%.2F max:%.2F standar_error:%.2F@ "
-                             name
+                         then Format.printf "%a: %.2f min:%.2F max:%.2F standar_error:%.2F@ "
+                             format_group_parameter group_param
                              result.Measurements.mean_value
                              (snd result.Measurements.min_value)
                              (snd result.Measurements.max_value)
                              result.Measurements.standard_error
-                         else Format.printf "%s: %.2f@ "
-                             name result.Measurements.mean_value
+                         else Format.printf "%a: %.2f@ "
+                             format_group_parameter group_param
+                             result.Measurements.mean_value
                        | Measurements.Group results ->
-                         Format.printf "@[<v 2>group %s@ " name;
+                         Format.printf "@[<v 2>group %a@ "
+                           format_group_parameter group_param;
                          List.iter (fun (fun_name, result) ->
                            if more_info
                            then Format.printf "%s: %.2f min:%.2F max:%.2F standar_error:%.2F@ "
@@ -433,23 +440,31 @@ let cut_pad width s =
   then String.sub s 0 width
   else s ^ (String.make (width - len) ' ')
 
-let sort_by_bench comp =
+let sort_by_bench
+    (comp:(float * float) option Measurements.group Measurements.GroupParamMap.t StringMap.t StringMap.t) =
   StringMap.fold (fun run_name set_bench res ->
     StringMap.fold (fun bench_name bench res ->
-      StringMap.fold (fun group_name value res ->
+      Measurements.GroupParamMap.fold (fun { group = group_name; parameter } value res ->
+        let param_name =
+          match parameter with
+          | None -> ""
+          | Some i -> Printf.sprintf ".%i" i in
         match value with
         | Measurements.Simple v ->
           begin
+            let full_name = bench_name ^ param_name in
             try
-              let set = StringMap.find bench_name res in
+              let set = StringMap.find full_name res in
               let map = StringMap.add run_name v set in
-              StringMap.add bench_name map res
-            with Not_found -> StringMap.add bench_name (StringMap.singleton run_name v) res
+              StringMap.add full_name map res
+            with Not_found -> StringMap.add full_name (StringMap.singleton run_name v) res
           end
         | Measurements.Group l ->
           begin
             List.fold_left (fun res (fun_name, v) ->
-              let full_name = Printf.sprintf "%s.%s.%s" bench_name group_name fun_name in
+              let full_name =
+                Printf.sprintf "%s.%s.%s%s" bench_name group_name fun_name param_name
+              in
               try
                 let set = StringMap.find full_name res in
                 let map = StringMap.add run_name v set in
@@ -460,7 +475,8 @@ let sort_by_bench comp =
     ) set_bench res
   ) comp StringMap.empty
 
-let print_compared_results ppf width name_width std_err_flag comp =
+let print_compared_results ppf width name_width std_err_flag
+    (comp:(float * float) option Measurements.group Measurements.GroupParamMap.t StringMap.t StringMap.t) =
   let print ppf value =
     (match value with
      | None -> Format.pp_print_string ppf (String.make name_width ' ')
@@ -495,7 +511,7 @@ let compare_subcommand () =
   let compare () =
     let result_map = load_all_results !selected_run in
     if (StringMap.cardinal result_map <> 0)
-    then 
+    then
       let _reference, comp = Measurements.compare_measurements result_map in
       let ppf = Format.std_formatter in
       let name_width = if !Arg_opt.standard_error then 12 else 8 in
@@ -525,7 +541,10 @@ let get_results selected_run =
   in
   List.fold_left aux StringMap.empty (load_result_list selected_run)
 
-let get_benchs results selected_bench group_name with_fun =
+let get_benchs
+    (results:((int * float) list * Measurements.result) Measurements.group
+         Measurements.GroupParamMap.t Utils.StringMap.t Utils.StringMap.t)
+    selected_bench group_name with_fun =
   let test_group group = function
     | None -> true
     | Some s -> s = group in
@@ -533,24 +552,29 @@ let get_benchs results selected_bench group_name with_fun =
     StringMap.fold (fun bench_name res acc ->
       if selected_bench = bench_name
       then
-        StringMap.fold (fun ssbench_name res acc ->
-          if test_group ssbench_name group_name 
+        Measurements.GroupParamMap.fold (fun { group = ssbench_name; parameter } res acc ->
+          let display_name =
+            match parameter with
+            | None -> ssbench_name
+            | Some i -> Printf.sprintf "%s.%i" ssbench_name i
+          in
+          if test_group ssbench_name group_name
           then match res with
             | Measurements.Simple res ->
               begin
                 try
-                  let set = StringMap.find ssbench_name acc in
-                  StringMap.add ssbench_name
-                    (StringMap.add run_name (StringMap.singleton ssbench_name res) set) acc
+                  let set = StringMap.find display_name acc in
+                  StringMap.add display_name
+                    (StringMap.add run_name (StringMap.singleton display_name res) set) acc
                 with Not_found ->
-                  StringMap.add ssbench_name
-                    (StringMap.singleton run_name (StringMap.singleton ssbench_name res)) acc
+                  StringMap.add display_name
+                    (StringMap.singleton run_name (StringMap.singleton display_name res)) acc
               end
             | Measurements.Group functions ->
               if with_fun
               then
                 List.fold_left (fun acc (fun_name, res) ->
-                  let full_name = Printf.sprintf "%s.%s" ssbench_name fun_name in
+                  let full_name = Printf.sprintf "%s.%s" display_name fun_name in
                   try
                     let set = StringMap.find full_name acc in
                     StringMap.add full_name
@@ -564,10 +588,10 @@ let get_benchs results selected_bench group_name with_fun =
                     StringMap.add fun_name res acc
                   ) StringMap.empty functions in
                   try
-                    let run_set = StringMap.find ssbench_name acc in
-                    StringMap.add ssbench_name (StringMap.add run_name group_set run_set) acc
+                    let run_set = StringMap.find display_name acc in
+                    StringMap.add display_name (StringMap.add run_name group_set run_set) acc
                   with Not_found ->
-                    StringMap.add ssbench_name (StringMap.singleton run_name group_set) acc
+                    StringMap.add display_name (StringMap.singleton run_name group_set) acc
                 end
           else acc
         ) res acc
