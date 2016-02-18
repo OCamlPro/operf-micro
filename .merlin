@@ -4,3 +4,5 @@ S benchmarks/**
 
 B .
 B builder/**
+
+FLG -w -40

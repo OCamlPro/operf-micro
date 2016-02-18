@@ -1,7 +1,7 @@
 
 include ../Makefile.conf
 
-WARN=-w +1..45-4-44-42
+WARN=-w +1..45-4-44-42-40
 OPT= $(WARN) -g -bin-annot -principal
 
 OBJS=\
