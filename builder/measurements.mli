@@ -67,7 +67,7 @@ type result =
 type group_param = { group : string; parameter : int option }
 module GroupParamMap : Map.S with type key = group_param
 
-val analyse_measurement : column -> measurement_sample list -> result
+val analyse_measurement : ?filter_outliers:bool -> column -> measurement_sample list -> result
 
 val analyse_measurements : column -> recorded_measurements -> result group GroupParamMap.t
 

@@ -399,6 +399,28 @@ let affine_adjustment (r:results_mat) =
   let b = mean_y -. a *. mean_x in
   a, b
 
+let quality data (a, b) =
+  let acc = ref 0. in
+  for i = 0 to Array.length data - 1 do
+    let (x, y) = data.(i) in
+    let diff =
+      let d = a *. float x +. b -. y in
+      d *. d
+    in
+    acc := !acc +. diff;
+  done;
+  !acc /. float (Array.length data)
+
+let ransac_param data =
+  { Ransac.model = affine_adjustment;
+    data;
+    subset_size = 10;
+    rounds = 100;
+    distance = (fun (x, y) (a, b) -> abs_float (a *. float x +. b -. y));
+    filter_distance = 10000.;
+    minimum_valid = Array.length data / 3;
+    error = quality }
+
 let sum a = Array.fold_left (+.) 0. a
 
 let standard_error ~a ~b (r:results_mat) =
@@ -446,10 +468,21 @@ type result =
       min_value : int * float;
       standard_error : float }
 
-let analyse_measurement c ml =
+let analyse_measurement ?(filter_outliers=true) c ml =
   let data = List.map (result_column c) ml in
   let a = Array.of_list data in
-  let mean_value, constant = affine_adjustment a in
+  let mean_value, constant =
+    if filter_outliers then
+      match Ransac.ransac (ransac_param a) with
+      | None ->
+        (* Couldn't extract a model, just return crude affine adjustment *)
+        Printf.eprintf "no model\n%!";
+        affine_adjustment a
+      | Some { Ransac.model; _ } ->
+        model
+    else
+      affine_adjustment a
+  in
   let min_value =
     Array.fold_left (fun (row_min, val_min) (row,value) ->
       let value = (value -. constant) /. float row in

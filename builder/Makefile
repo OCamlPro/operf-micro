@@ -7,8 +7,8 @@ OPT= $(WARN) -g -bin-annot -principal
 OBJS=\
   static_config.cmo utils.cmo \
   files.cmo parser.cmo lexer.cmo loc.cmo command.cmo \
-  detect_config.cmo benchmark.cmo measurements.cmo \
-  builder.cmo main.cmo
+  detect_config.cmo benchmark.cmo ransac.cmo \
+  measurements.cmo builder.cmo main.cmo
 
 ifeq "${BEST}" "opt"
 BIN=builder.opt$(EXEEXT)

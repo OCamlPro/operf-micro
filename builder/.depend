@@ -1,5 +1,3 @@
-analysis_result.cmo :
-analysis_result.cmx :
 benchmark.cmo : utils.cmo files.cmo detect_config.cmi command.cmi \
     benchmark.cmi
 benchmark.cmx : utils.cmx files.cmx detect_config.cmx command.cmx \
@@ -18,31 +16,29 @@ files.cmo :
 files.cmx :
 lexer.cmo : parser.cmi
 lexer.cmx : parser.cmx
-linear_algebra.cmo : utils.cmo linear_algebra.cmi
-linear_algebra.cmx : utils.cmx linear_algebra.cmi
 loc.cmo : loc.cmi
 loc.cmx : loc.cmi
 main.cmo : utils.cmo measurements.cmi loc.cmi files.cmo detect_config.cmi \
     command.cmi builder.cmo benchmark.cmi
 main.cmx : utils.cmx measurements.cmx loc.cmx files.cmx detect_config.cmx \
     command.cmx builder.cmx benchmark.cmx
-measurements.cmo : utils.cmo files.cmo detect_config.cmi command.cmi \
+measurements.cmo : utils.cmo ransac.cmi files.cmo detect_config.cmi \
     benchmark.cmi measurements.cmi
-measurements.cmx : utils.cmx files.cmx detect_config.cmx command.cmx \
+measurements.cmx : utils.cmx ransac.cmx files.cmx detect_config.cmx \
     benchmark.cmx measurements.cmi
 parser.cmo : files.cmo parser.cmi
 parser.cmx : files.cmx parser.cmi
+ransac.cmo : ransac.cmi
+ransac.cmx : ransac.cmi
 static_config.cmo : static_config.cmi
 static_config.cmx : static_config.cmi
-test.cmo : parser.cmi lexer.cmo
-test.cmx : parser.cmx lexer.cmx
 utils.cmo :
 utils.cmx :
-benchmark.cmi : detect_config.cmi command.cmi
+benchmark.cmi : utils.cmo detect_config.cmi
 command.cmi : utils.cmo
 detect_config.cmi : utils.cmo loc.cmi files.cmo command.cmi
-linear_algebra.cmi : utils.cmo
 loc.cmi :
-measurements.cmi : files.cmo detect_config.cmi benchmark.cmi
+measurements.cmi : utils.cmo files.cmo detect_config.cmi benchmark.cmi
 parser.cmi : files.cmo
+ransac.cmi :
 static_config.cmi :
