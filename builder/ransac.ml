@@ -50,7 +50,9 @@ type ('a, 'b) result =
     error : float }
 
 let one_round (r: ('a,'b) input) : ('a, 'b) result option =
-  let in_subset, _out_of_subset = random_partition r.subset_size r.data in
+  let in_subset, _out_of_subset =
+    random_partition (min (Array.length r.data/2) r.subset_size) r.data
+  in
   let model = r.model in_subset in
   let fiting = array_filter (fun p -> r.distance p model < r.filter_distance) r.data in
   if Array.length fiting > r.minimum_valid then begin
