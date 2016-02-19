@@ -30,7 +30,9 @@ let build_subcommand () =
   compiler_arg_opt,
   (fun _s -> ()),
   "",
-  (fun () -> do_build !compile_arg)
+  (fun () ->
+     let _failed_build = do_build !compile_arg in
+     ())
 
 let do_check extra_dir =
   let path =
@@ -51,8 +53,9 @@ let do_check extra_dir =
     let context = Detect_config.load_context config in
     let build_descr = load_build_descrs context in
     Detect_config.prepare_build context;
-    build_benchmarks context build_descr [];
-    Utils.remove path
+    let failed = build_benchmarks context build_descr [] in
+    Utils.remove path;
+    if failed then exit 1
 
 let check_subcommand () =
   let r = ref [] in
@@ -726,7 +729,7 @@ let doall_subcommand () =
     do_clean ();
     do_init ~with_default_benchmarks:!Arg_opt.with_default_benchmarks
       name extra_dir bin_dir default_dir_flag;
-    do_build compile_arg;
+    let _failed_build = do_build compile_arg in
     Utils.unlock ();
     do_run output_dir rc;
     Utils.unlock ();

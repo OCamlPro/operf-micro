@@ -123,10 +123,15 @@ let build_benchmarks c l ocamlopt_arg =
     (Printf.eprintf "couldn't build operf base files\n%!";
      exit 1)
   else
+    let failed = ref false in
     List.iter (fun b ->
         if not (build_opt c b ocamlopt_arg)
-        then Printf.eprintf "couldn't build %s\n%!" (opt_binary b))
-      l
+        then begin
+          Printf.eprintf "couldn't build %s\n%!" (opt_binary b);
+          failed := true;
+        end)
+      l;
+    !failed
 
 let print_time_approximation rc b =
   let time_quota =
