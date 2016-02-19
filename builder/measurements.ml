@@ -411,13 +411,17 @@ let quality data (a, b) =
   done;
   !acc /. float (Array.length data)
 
+let ransac_filter_distance (x, y) (a, b) =
+  let level = max (float x) (max y (max a b)) in
+  abs_float (a *. float x +. b -. y) /. level
+
 let ransac_param data =
   { Ransac.model = affine_adjustment;
     data;
     subset_size = 10;
     rounds = 100;
-    distance = (fun (x, y) (a, b) -> abs_float (a *. float x +. b -. y));
-    filter_distance = 10000.;
+    distance = ransac_filter_distance;
+    filter_distance = 0.05;
     minimum_valid = Array.length data / 3;
     error = quality }
 
