@@ -17,4 +17,6 @@ opam install $OPAM_PKGS
 
 export OCAMLRUNPARAM=b
 
-opam pin add .
+./configure --prefix=`opam config var prefix`
+make all
+./builder/builder.opt check benchmarks/
