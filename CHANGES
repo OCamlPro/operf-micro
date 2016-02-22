@@ -1,2 +1,26 @@
+master (unreleased)
+
+* Allow running benchmarks without local init (--defaul-dir option)
+* Add numerical analysis benchmarks
+* Privide merlin files to help devellop benchmarks (thanks to Drup)
+* Report allocations (thanks to Drup)
+* Add format benchmark (thanks to Drup)
+
+1.0.0 (Jun 2015)
+
+* Add plot subcommand
+* Improve result reporting
+* Add the --stabilize-gc option to the builder
+* Add sequence benchmark (thanks to c-cube)
+* Add vector benchmark
+
+0.2.0 (Apr 2015)
+* Adds a check subcommand to help develloping benchmarks
+* Annouce the estimated running time
+* Add the -I option to the init subcommand to use user benchmarks
+* Allow adding compile option to build benchmarks
+* Switch the licence to MIT
+* Add lens benchmark
+
 0.1.0 (Mar 2015)
 * initial release
