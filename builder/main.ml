@@ -714,8 +714,8 @@ let plot_subcommand () =
       then
         let list_file = dump_plot_data bench_name by_benchs in
         open_plot list_file
-      else Printf.printf "Can't find %s bench" first_arg
-    else Printf.printf "You need to specify a bench"
+      else Printf.printf "Can't find %s bench\n" first_arg
+    else Printf.printf "You need to specify a bench\n"
   in
   Arg_opt.with_fun_arg @
   Arg_opt.output_png_arg,
