@@ -338,11 +338,11 @@ let load_result_list selected_run =
      let bench_named_dirs = Command.subdirectories home_dir in
      let all_res = List.map res bench_named_dirs in
      if selected_run <> []
-     then 
-       let res_list = 
+     then
+       let res_list =
          List.filter (fun run -> List.mem run.res_name selected_run) all_res in
        if List.length res_list <> List.length selected_run
-       then List.iter (fun run_name -> 
+       then List.iter (fun run_name ->
          if not (List.exists (fun res -> res.res_name = run_name) res_list)
          then Printf.printf "can't find %s run\n%!" run_name) selected_run;
        res_list
@@ -697,13 +697,13 @@ let plot_subcommand () =
     if (List.length selection) >= 1
     then
       let first_arg = List.hd selection in
-      let bench_name, group_name = 
-        if String.contains first_arg '.' 
+      let bench_name, group_name =
+        if String.contains first_arg '.'
         then
           let index = String.rindex first_arg '.' in
           let len_left = (String.length first_arg) - index - 1 in
-          String.sub first_arg 0 index, 
-          if len_left > 0 then 
+          String.sub first_arg 0 index,
+          if len_left > 0 then
             Some (String.sub first_arg (index + 1) ((String.length first_arg) - index - 1))
           else None
         else first_arg, None in
@@ -748,14 +748,14 @@ let doall_subcommand () =
   compiler_arg_opt,
   (fun s -> args := s :: !args),
   "[<args>] <name>\n\
-   clean, initialize the .operf directory.\n",
+   clean, initialize the .operf directory, build and run all tests.\n",
   (fun () ->
      match !args with
      | [name] ->
        let selected_set = Arg_opt.get_selected_sets () in
        let rc = Arg_opt.make_run_config selected_set in
        do_all name !Arg_opt.bin_dir !Arg_opt.extra_dir !Arg_opt.default_dir_flag !Arg_opt.output_dir selected_set !compile_arg rc
-     | _ -> failwith "wrong number of arguments, expected: <name>")
+     | _ -> failwith "wrong number of arguments, expected: <name of compiler>")
 
 let subcommands =
   [ "init", init_subcommand;

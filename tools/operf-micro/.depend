@@ -2,22 +2,26 @@ benchmark.cmo : utils.cmo files.cmo detect_config.cmi command.cmi \
     benchmark.cmi
 benchmark.cmx : utils.cmx files.cmx detect_config.cmx command.cmx \
     benchmark.cmi
+benchmark.cmi : utils.cmo detect_config.cmi
 builder.cmo : utils.cmo measurements.cmi detect_config.cmi command.cmi \
     benchmark.cmi
 builder.cmx : utils.cmx measurements.cmx detect_config.cmx command.cmx \
     benchmark.cmx
 command.cmo : utils.cmo command.cmi
 command.cmx : utils.cmx command.cmi
+command.cmi : utils.cmo
 detect_config.cmo : utils.cmo static_config.cmi parser.cmi loc.cmi lexer.cmo \
     files.cmo command.cmi detect_config.cmi
 detect_config.cmx : utils.cmx static_config.cmx parser.cmx loc.cmx lexer.cmx \
     files.cmx command.cmx detect_config.cmi
+detect_config.cmi : utils.cmo loc.cmi files.cmo command.cmi
 files.cmo :
 files.cmx :
 lexer.cmo : parser.cmi
 lexer.cmx : parser.cmx
 loc.cmo : loc.cmi
 loc.cmx : loc.cmi
+loc.cmi :
 main.cmo : utils.cmo measurements.cmi loc.cmi files.cmo detect_config.cmi \
     command.cmi builder.cmo benchmark.cmi
 main.cmx : utils.cmx measurements.cmx loc.cmx files.cmx detect_config.cmx \
@@ -26,19 +30,15 @@ measurements.cmo : utils.cmo ransac.cmi files.cmo detect_config.cmi \
     benchmark.cmi measurements.cmi
 measurements.cmx : utils.cmx ransac.cmx files.cmx detect_config.cmx \
     benchmark.cmx measurements.cmi
+measurements.cmi : utils.cmo files.cmo detect_config.cmi benchmark.cmi
 parser.cmo : files.cmo parser.cmi
 parser.cmx : files.cmx parser.cmi
+parser.cmi : files.cmo
 ransac.cmo : ransac.cmi
 ransac.cmx : ransac.cmi
+ransac.cmi :
 static_config.cmo : static_config.cmi
 static_config.cmx : static_config.cmi
+static_config.cmi :
 utils.cmo :
 utils.cmx :
-benchmark.cmi : utils.cmo detect_config.cmi
-command.cmi : utils.cmo
-detect_config.cmi : utils.cmo loc.cmi files.cmo command.cmi
-loc.cmi :
-measurements.cmi : utils.cmo files.cmo detect_config.cmi benchmark.cmi
-parser.cmi : files.cmo
-ransac.cmi :
-static_config.cmi :

@@ -162,7 +162,7 @@ let timestamp t =
   let year = tm.Unix.tm_year + 1900 in
   Printf.sprintf "%i-%.2i-%.2i_%.2i-%.2i-%.2i"
     year
-    tm.Unix.tm_mon
+    (tm.Unix.tm_mon+1)
     tm.Unix.tm_mday
     tm.Unix.tm_hour
     tm.Unix.tm_min
@@ -455,4 +455,3 @@ let find_ocaml_binary_path () =
   | Some _ as r -> r
   | None ->
     find_compiler_path "ocamlopt.opt"
-

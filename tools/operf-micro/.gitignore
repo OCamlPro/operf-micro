@@ -1,0 +1,8 @@
+/lexer.ml
+/parser.ml
+/parser.mli
+/builder
+/builder.exe
+/builder.opt.exe
+/builder.opt
+/static_config.ml

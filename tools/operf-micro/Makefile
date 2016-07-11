@@ -1,5 +1,7 @@
 
-include ../Makefile.conf
+ROOTDIR=../../
+
+include $(ROOTDIR)/Makefile.conf
 
 WARN=-w +1..45-4-44-42-40
 OPT= $(WARN) -g -bin-annot -principal
@@ -16,7 +18,7 @@ endif
 
 all: $(BIN)
 
-static_config.ml: ../Makefile.conf
+static_config.ml: $(ROOTDIR)/Makefile.conf
 	echo "let name = \"$(PKG)\"" > static_config.ml
 	echo "let prefix = \"$(PREFIX)\"" >> static_config.ml
 
@@ -43,7 +45,10 @@ builder.opt$(EXEEXT): $(OBJS:cmo=cmx)
 
 install: $(BIN)
 	mkdir -p $(BINDIR)
-	cp -f $(BIN) $(BINDIR)/$(NAME)$(EXEEXT)
+	cp -f $(BIN) $(BINDIR)/$(PKG)$(EXEEXT)
+
+uninstall:
+	rm -f $(BINDIR)/$(PKG)$(EXEEXT)
 
 clean:
 	rm -f static_config.ml

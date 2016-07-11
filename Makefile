@@ -5,37 +5,30 @@ FILES= \
   micro_bench_types.mli time_stamp_counter.ml \
   benchmarks
 
-all: merlin
-	$(MAKE) -C builder all
+OPERF_MICRO:=operf-micro
+OPERF_MICRO_SRC:=tools/$(OPERF_MICRO)
+OPERF_MICRO_SHARE:=share/$(OPERF_MICRO)
 
-install_benchs:
-	mkdir -p $(SHARE)/$(PKG)/
-	cp -a $(FILES) $(SHARE)/$(PKG)/
+all:
+	$(MAKE) -C $(OPERF_MICRO_SRC) all
+	$(MAKE) -C $(OPERF_MICRO_SHARE) all
 
-install: all install_benchs
-	cp -a builder/builder.opt $(BIN)/operf-micro
+install: all
+	$(MAKE) -C $(OPERF_MICRO_SRC) install
+	$(MAKE) -C $(OPERF_MICRO_SHARE) install
 
-uninstall_benchs:
-	rm -rf $(SHARE)/$(PKG)/benchmarks
+clean: clean
+	$(MAKE) -C $(OPERF_MICRO_SRC) clean
+	$(MAKE) -C $(OPERF_MICRO_SHARE) clean
 
-uninstall: uninstall_benchs
-	rm -f $(BIN)/operf-micro
-	rm -rf $(SHARE)/$(PKG)
+uninstall:
+	$(MAKE) -C $(OPERF_MICRO_SRC) uninstall
+	$(MAKE) -C $(OPERF_MICRO_SHARE) uninstall
 
 distclean: clean
 	rm -f Makefile.conf
 
-clean:
-	$(MAKE) -C builder clean
-	rm *.cmi
-
 depend:
-	$(MAKE) -C builder depend
+	$(MAKE) -C $(OPERF_MICRO_SRC) depend
 
-%.cmi: %.mli
-	ocamlc -c $<
-
-merlin: micro_bench_types.cmi
-
-.PHONY: all install install-builder install-data depend clean\
-	uninstall_benchs uninstall
+.PHONY: all install depend clean uninstall distclean
