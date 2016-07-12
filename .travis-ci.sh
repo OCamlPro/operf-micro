@@ -15,8 +15,13 @@ eval `opam config env`
 
 opam install $OPAM_PKGS
 
+opam remove operf-micro
+opam pin remove operf-micro
+opam pin add operf-micro .
+
 export OCAMLRUNPARAM=b
 
-./configure --prefix=`opam config var prefix`
-make all
-./builder/builder.opt check benchmarks/
+operf-micro check share/operf-micro/benchmarks/
+
+opam remove operf-micro
+opam pin remove operf-micro
