@@ -1,4 +1,4 @@
-master (unreleased)
+1.1.0 (Jul 2016)
 
 * Allow running benchmarks without local init (--defaul-dir option)
 * Add numerical analysis benchmarks
