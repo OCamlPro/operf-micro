@@ -265,7 +265,7 @@ let functions =
     "map succ", map_succ_group;
     "rev_map succ", rev_map_succ_group;
     "fold_left add", fold_left_add_group;
-    "fold_left add_float", fold_left_add_group;
+    "fold_left add_float", fold_left_add_float_group;
   ]
 
 let () = add functions
