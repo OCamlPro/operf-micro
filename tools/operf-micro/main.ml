@@ -1,4 +1,4 @@
-open Utils
+open! Utils
 open Detect_config
 open Benchmark
 open Builder
@@ -819,7 +819,7 @@ let print_measurements_error ppf = function
   | Measurements.Missing_field s ->
      Format.fprintf ppf "Missing file field %s" s
 
-let print_errors ppf = function
+let print_errors ppf : exn -> unit = function
   | Error e -> print_error ppf e
   | Benchmark.Error e -> print_error_benchmark ppf e
   | Detect_config.Error e -> print_detect_config_error ppf e

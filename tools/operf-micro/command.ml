@@ -1,4 +1,4 @@
-open Utils
+open! Utils
 
 let debug = false
 
@@ -79,7 +79,7 @@ let input_all =
   let buf = Bytes.create len in
   let rec aux ic b =
     let n = input ic buf 0 1024 in
-    Buffer.add_substring b buf 0 n;
+    Buffer.add_subbytes b buf 0 n;
     if n = 1024
     then aux ic b
   in
@@ -275,8 +275,8 @@ let read_file file =
     Some (input_all_file file)
   | _ -> None
 
-let get_and_make_subdir f subdir =
-  match f () with
+let get_and_make_subdir f subdir : (directory, string) Utils.result =
+  match (f () : (directory, directory) Utils.result) with
   | Err e -> Err e
   | Ok d ->
     let sub = Filename.concat d subdir in

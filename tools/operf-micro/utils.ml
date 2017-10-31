@@ -60,7 +60,7 @@ let split c s =
 
 let lines s = split '\n' s
 
-let home_directory () =
+let home_directory () : _ result =
   try
     let d = Sys.getenv "HOME" in
     if Sys.file_exists d

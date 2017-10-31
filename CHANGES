@@ -3,6 +3,8 @@
 * Update C compilation command for recent compilers
 * Add Kahan-sum benchmark (cost of abstraction)
 * Add Nullable-array benchmark
+* Fix warnings
+* safe-string compatible (4.06 compatibility)
 
 1.1.0 (Jul 2016)
 
