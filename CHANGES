@@ -1,3 +1,9 @@
+1.1.1 (Oct 2017)
+
+* Update C compilation command for recent compilers
+* Add Kahan-sum benchmark (cost of abstraction)
+* Add Nullable-array benchmark
+
 1.1.0 (Jul 2016)
 
 * Allow running benchmarks without local init (--defaul-dir option)
