@@ -78,7 +78,8 @@ let build_operf_file_command c native in_file =
     comp_command
       [ A "-c";
         A "-I"; ID c.operf_files_build_path;
-        A "-o"; OF (Filename.concat c.operf_files_build_path dst);
+        A "-ccopt"; A "-o";
+        A "-ccopt"; OF (Filename.concat c.operf_files_build_path dst);
         IF dest_c_file ]
       (Some c.operf_files_build_path)
   | _ ->
