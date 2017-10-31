@@ -603,7 +603,7 @@ let get_benchs
   ) results StringMap.empty
 
 let dump_header oc plot_fn full_name =
-  Printf.fprintf oc "set title %S\n" full_name;
+  Printf.fprintf oc "set title %S noenhanced\n" full_name;
   if !Arg_opt.output_png
   then
     begin
@@ -652,14 +652,16 @@ let dump_plot_data bench_name data =
         if (!cpt = 0)
         then
           Printf.fprintf oc_script
-            " index %i ls %i title %S, \"\" index %i using 1:(%f*$1 + %f) ls %i w l title %S"
+            " index %i ls %i title %S  noenhanced, \
+             \"\" index %i using 1:(%f*$1 + %f) ls %i w l title %S noenhanced"
             !cpt (!cpt + 1) data_name !cpt
             res.Measurements.mean_value
             res.Measurements.constant
             (!cpt + 1) (data_name ^ " calculated")
         else
           Printf.fprintf oc_script
-            ", \"\" index %i ls %i title %S, \"\" index %i using 1:(%f*$1 + %f) ls %i w l title %S"
+            ", \"\" index %i ls %i title %S  noenhanced, \
+             \"\" index %i using 1:(%f*$1 + %f) ls %i w l title %S noenhanced"
             !cpt (!cpt + 1) data_name !cpt
             res.Measurements.mean_value
             res.Measurements.constant
