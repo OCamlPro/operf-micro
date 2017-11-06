@@ -7,6 +7,7 @@ homepage: "http://www.typerex.org/operf-micro.html"
 dev-repo: "git://github.com/OCamlPro/operf-micro"
 bug-reports: "http://github.com/OCamlPro/operf-micro/issues"
 license: "MIT"
+available: [ ocaml-version >= "4.02.0" ]
 
 build: [ make ]
 install: [ make "install" ]
