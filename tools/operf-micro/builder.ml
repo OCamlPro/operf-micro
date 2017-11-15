@@ -40,6 +40,8 @@ let ocamlopt_command c other_args b =
     ([ A "-g" ] @
      [ A "-o"; OF (opt_binary b) ] @
      (operf_built_files c [ "cycles.o" ]) @
+     [ A "-nostdlib"] @
+     [ A "-I"; ID c.stdlib_path ] @
      opt_libraries c b @
      [ A "-I"; ID c.operf_files_path ] @
      [ A "-I"; ID b.bench_path ] @
@@ -54,6 +56,8 @@ let ocamlc_command c b =
     c
     ([ A "-custom"; A "-o"; OF (byte_binary b) ] @
      (operf_built_files c [ "cycles.o" ]) @
+     [ A "-nostdlib"] @
+     [ A "-I"; ID c.stdlib_path ] @
      byte_libraries c b @
      [ A "-I"; ID c.operf_files_path ] @
      [ A "-I"; ID b.bench_path ] @
@@ -87,6 +91,8 @@ let build_operf_file_command c native in_file =
     let dst = dest_filename ~native in_file in
     comp_command
       [ A "-c";
+        A "-nostdlib";
+        A "-I"; ID c.stdlib_path;
         A "-I"; ID c.operf_files_build_path;
         A "-o"; OF (Filename.concat c.operf_files_build_path dst);
         IF (Filename.concat c.operf_files_path src) ]

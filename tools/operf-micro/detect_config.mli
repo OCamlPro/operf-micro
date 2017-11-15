@@ -16,7 +16,8 @@ exception Error of error
 type config =
   { name : string;
     ocaml_bin_dir : directory;
-    operf_root_dir : directory; }
+    operf_root_dir : directory;
+    is_ocaml_build_dir : bool; }
 
 type executable =
   | Bytecode

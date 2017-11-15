@@ -4,7 +4,8 @@ open Command
 type config =
   { name : string;
     ocaml_bin_dir : directory;
-    operf_root_dir : directory; }
+    operf_root_dir : directory;
+    is_ocaml_build_dir : bool; }
 
 type executable =
   | Bytecode
@@ -87,6 +88,8 @@ let rec find_ancestor f path =
     then None (* root directory *)
     else find_ancestor f parent
 
+let stdlib_subdir = "stdlib"
+
 let is_ocaml_building_directory path =
   let check_subdir d =
     let d' = Filename.concat path d in
@@ -95,7 +98,7 @@ let is_ocaml_building_directory path =
     let f' = Filename.concat path f in
     Sys.file_exists f' && not (Sys.is_directory f') in
   Sys.is_directory path &&
-  check_subdir "stdlib" &&
+  check_subdir stdlib_subdir &&
   check_subdir "byterun" &&
   check_file "configure" &&
   check_file "Makefile"
@@ -144,10 +147,11 @@ let find_operf_directory ?(path=run_directory) () =
 
 type config_file' =
   { name' : string option;
-    ocaml_bin_dir' : directory option }
+    ocaml_bin_dir' : directory option;
+    is_ocaml_build_dir' : bool option; }
 
 let empty_config_file' =
-  { name' = None; ocaml_bin_dir' = None }
+  { name' = None; ocaml_bin_dir' = None; is_ocaml_build_dir' = None }
 
 
 let micro_directory config =
@@ -176,23 +180,37 @@ let load_timestamp config =
   read_file (timestamp_file config)
 
 let check_config_file dir filename = function
-  | { name' = Some name; ocaml_bin_dir' = Some ocaml_bin_dir } ->
+  | { name' = Some name; ocaml_bin_dir' = Some ocaml_bin_dir;
+      is_ocaml_build_dir' = Some is_ocaml_build_dir } ->
     { name;
       ocaml_bin_dir;
+      is_ocaml_build_dir;
       operf_root_dir = operf_subdir dir; }
   | { name' = None; _ } ->
     raise (Error (Missing_config_field (filename, "name")))
   | { ocaml_bin_dir' = None; _ } ->
     raise (Error (Missing_config_field (filename, "ocaml_bin_dir")))
+  | { is_ocaml_build_dir' = None; _ } ->
+    raise (Error (Missing_config_field (filename, "is_ocaml_build_dir")))
 
-let config_to_file { operf_root_dir = _; ocaml_bin_dir; name } =
+let int_of_bool = function
+  | false -> 0
+  | true -> 1
+
+let config_to_file { operf_root_dir = _; ocaml_bin_dir; name; is_ocaml_build_dir } =
   let dict = [] in
   let dict = ("ocaml_bin_dir", Files.String ocaml_bin_dir) :: dict in
   let dict = ("name", Files.String name) :: dict in
+  let dict = ("is_ocaml_build_dir", Files.Int (int_of_bool is_ocaml_build_dir)) :: dict in
   Files.Dict dict
 
 let string = function
   | Files.String s -> s
+  | _ -> failwith "parse error"
+
+let bool = function
+  | Files.Int 0 -> false
+  | Files.Int 1 -> true
   | _ -> failwith "parse error"
 
 let parse_operf_config_file dir filename v =
@@ -204,10 +222,15 @@ let parse_operf_config_file dir filename v =
     match e.name' with
     | None -> { e with name' = Some (string v) }
     | Some _ -> raise (Error (Duplicate_config_field (filename, "name"))) in
+  let config_is_build_dir v e =
+    match e.is_ocaml_build_dir' with
+    | None -> { e with is_ocaml_build_dir' = Some (bool v) }
+    | Some _ -> raise (Error (Duplicate_config_field (filename, "is_ocaml_build_dir"))) in
 
   let fields e = function
     | "name", v -> config_name v e
     | "ocaml_bin_dir", v -> ocaml_bin_dir v e
+    | "is_ocaml_build_dir", v -> config_is_build_dir v e
     | s, _ -> failwith ("Unknown field: " ^ s)
   in
   let r =
@@ -310,7 +333,8 @@ let initialize_in_compiler_dir ?path ~with_default_benchmarks name extra_dir =
   let config =
     { name = name;
       ocaml_bin_dir = root_dir;
-      operf_root_dir = operf_subdir root_dir } in
+      operf_root_dir = operf_subdir root_dir;
+      is_ocaml_build_dir = true; } in
   write_initialize root_dir extra_dir config ~with_default_benchmarks;
   root_dir
 
@@ -328,6 +352,7 @@ let initialize_with_bin_dir
   let config =
     { name = name;
       ocaml_bin_dir;
+      is_ocaml_build_dir = false;
       operf_root_dir = operf_subdir root_dir } in
   write_initialize root_dir extra_dir config ~with_default_benchmarks;
   root_dir
@@ -381,16 +406,19 @@ let make_command ocamlrun (file, kind) command dir =
     | Some ocamlrun -> Some (ocamlrun, IF file :: command, dir)
 
 let stdlib_path ocamlrun config =
-  match find_ocamlc config, find_ocamlopt config with
-  | None, None -> None
-  | Some compiler, _
-  | None, Some compiler ->
-    match make_command ocamlrun compiler [A "-where"] None with
-    | None -> None
-    | Some c ->
-      match run_command c with
+  if config.is_ocaml_build_dir then
+    Some (Filename.concat config.ocaml_bin_dir stdlib_subdir)
+  else
+    match find_ocamlc config, find_ocamlopt config with
+    | None, None -> None
+    | Some compiler, _
+    | None, Some compiler ->
+      match make_command ocamlrun compiler [A "-where"] None with
       | None -> None
-      | Some s -> Some (String.trim s)
+      | Some c ->
+        match run_command c with
+        | None -> None
+        | Some s -> Some (String.trim s)
 
 let load_context config =
   let ocamlc_path = find_ocamlc config in
