@@ -4,7 +4,7 @@ ROOTDIR=../../
 include $(ROOTDIR)/Makefile.conf
 
 WARN=-w +1..45-4-44-42-40
-OPT= $(WARN) -g -bin-annot -principal
+OPT= $(WARN) -g -bin-annot -principal -I +unix
 
 OBJS=\
   static_config.cmo utils.cmo \
@@ -38,10 +38,10 @@ lexer.ml: lexer.mll
 	ocamlc $(OPT) -c $<
 
 builder$(EXEEXT): $(OBJS)
-	ocamlc -g -o $@ unix.cma $^
+	ocamlc -g -o -I +unix $@ unix.cma $^
 
 builder.opt$(EXEEXT): $(OBJS:cmo=cmx)
-	ocamlopt -g -o $@ unix.cmxa $^
+	ocamlopt -g -I +unix -o $@ unix.cmxa $^
 
 install: $(BIN)
 	mkdir -p $(BINDIR)

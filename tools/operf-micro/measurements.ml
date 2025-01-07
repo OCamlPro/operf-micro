@@ -5,7 +5,7 @@ open Utils
 type group_param = { group : string; parameter : int option }
 module GroupParam = struct
   type t = group_param
-  let compare = Pervasives.compare
+  let compare = Stdlib.compare
 end
 module GroupParamMap = Map.Make(GroupParam)
 
