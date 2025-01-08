@@ -1,4 +1,12 @@
 #!/bin/bash
 
 [[ $1 =~ --prefix=[[:space:]]*(.*) ]] && path=${BASH_REMATCH[1]}
-sed "s|%{prefix}%|$path|g" Makefile.conf.in > Makefile.conf
+if command -v ocamlopt > /dev/null 2>&1; then
+    echo "ocamlopt available"
+    native=true
+else
+    echo "ocamlopt not available"
+    native=false
+fi
+
+sed "s|%{prefix}%|$path|g; s|%{ocaml:native}%|$native|g" Makefile.conf.in > Makefile.conf

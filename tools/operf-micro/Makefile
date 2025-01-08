@@ -12,8 +12,10 @@ OBJS=\
   detect_config.cmo benchmark.cmo ransac.cmo \
   measurements.cmo builder.cmo main.cmo
 
-ifeq "${BEST}" "opt"
+ifeq "${NATIVE}" "true"
 BIN=builder.opt$(EXEEXT)
+else
+BIN=builder$(EXEEXT)
 endif
 
 all: $(BIN)
@@ -38,7 +40,7 @@ lexer.ml: lexer.mll
 	ocamlc $(OPT) -c $<
 
 builder$(EXEEXT): $(OBJS)
-	ocamlc -g -o -I +unix $@ unix.cma $^
+	ocamlc -g -I +unix -o $@ unix.cma $^
 
 builder.opt$(EXEEXT): $(OBJS:cmo=cmx)
 	ocamlopt -g -I +unix -o $@ unix.cmxa $^

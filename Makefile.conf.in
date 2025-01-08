@@ -2,7 +2,7 @@ PKG := operf-micro
 PREFIX := %{prefix}%
 SHARE := $(PREFIX)/share/
 BINDIR := $(PREFIX)/bin/
-BEST := opt
+NATIVE := %{ocaml:native}%
 
 EXEEXT :=
 OBJEXT := .o
