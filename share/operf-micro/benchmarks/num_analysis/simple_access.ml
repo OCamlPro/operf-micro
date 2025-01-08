@@ -1,5 +1,3 @@
-open Unix
-
 let main len =
   let r = ref 0. in
   let arr = Simple_access_a.arr len in

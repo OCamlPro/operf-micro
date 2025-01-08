@@ -59,9 +59,6 @@ let () = Gc.set
     { c with Gc.minor_heap_size = 32000000;
              Gc.space_overhead = 80 * 20 }
 
-let gather t =
-  t.Unix.tms_utime +. t.Unix.tms_stime +. t.Unix.tms_cutime +. t.Unix.tms_cstime
-
 let main i =
   let arr =
     let len = i in
