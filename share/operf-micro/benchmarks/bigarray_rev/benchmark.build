@@ -1,2 +1,2 @@
 { files: ["utils.ml", "benchmark.ml"],
-  link: ["bigarray"] }
+  link: [] }
