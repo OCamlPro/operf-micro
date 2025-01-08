@@ -1,3 +1,8 @@
+1.1.3 (Jan 2025)
+
+* Fix benchmarks that don't work with OCaml 5.0
+* Fix build system for cases where ocamlopt is not available
+
 1.1.2 (Jan 2025)
 
 * Support for OCaml >= 5.0 (requires OCaml >= 4.07)
