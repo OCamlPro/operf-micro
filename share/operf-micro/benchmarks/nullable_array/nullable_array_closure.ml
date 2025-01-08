@@ -1,3 +1,5 @@
+(* Disabled: there is no way to avoid scanning a field in OCaml 5.0
+   This might get restored some day if null values are allowed
 
 (* This type tells the compiler that it is not a float, but can
    contain heap allocated values.
@@ -70,3 +72,5 @@ let iteri_sparse ~(f:int -> 'a -> unit) (a:'a t) : unit =
     let elt = Array.unsafe_get a i in
     if elt != null then f i (Obj.magic elt:'a)
   done
+
+*)

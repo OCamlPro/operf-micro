@@ -5,7 +5,7 @@ module type M = module type of Nullable_array_interface
 
 type 'a prepared_array =
   { option_array : 'a Option_array.t;
-    nullable_array_closure : 'a Nullable_array_closure.t;
+    (* nullable_array_closure : 'a Nullable_array_closure.t; *)
     nullable_array_marker : 'a Nullable_array_marker.t; }
 
 module type Get = sig
@@ -111,13 +111,13 @@ module OA =
       let name = "option_array"
       let get { option_array } = option_array
     end)
-module NAC =
-  Bench
-    (Nullable_array_closure)
-    (struct
-      let name = "nullable_array_closure"
-      let get { nullable_array_closure } = nullable_array_closure
-    end)
+(* module NAC = *)
+(*   Bench *)
+(*     (Nullable_array_closure) *)
+(*     (struct *)
+(*       let name = "nullable_array_closure" *)
+(*       let get { nullable_array_closure } = nullable_array_closure *)
+(*     end) *)
 module NAM =
   Bench
     (Nullable_array_marker)
@@ -128,7 +128,7 @@ module NAM =
 
 let copy_prepared_option_array base_array =
   { option_array = OA.copy_option_array base_array;
-    nullable_array_closure = NAC.copy_option_array base_array;
+    (* nullable_array_closure = NAC.copy_option_array base_array; *)
     nullable_array_marker = NAM.copy_option_array base_array; }
 
 let check_sum_option_array density size res =
@@ -148,7 +148,7 @@ let sum density =
   Int_group (
     [
       OA.sum_bench;
-      NAC.sum_bench;
+      (* NAC.sum_bench; *)
       NAM.sum_bench;
     ],
        prepare_random_array density,
@@ -173,8 +173,8 @@ let walk density =
     [
       OA.walk_bench;
       OA.walk_k_bench;
-      NAC.walk_bench;
-      NAC.walk_k_bench;
+      (* NAC.walk_bench; *)
+      (* NAC.walk_k_bench; *)
       NAM.walk_bench;
       NAM.walk_k_bench;
     ],
